@@ -3,7 +3,8 @@
 from typing import Dict, Type
 
 from src.config.settings import Config
-from src.providers.llm.base import LLMProvider, GPTunnelProvider
+from src.providers.llm.base import LLMProvider
+from src.providers.llm.gptunnel import GPTunnelProvider
 
 
 class LLMProviderFactory:
