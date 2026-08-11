@@ -49,7 +49,8 @@ class Features:
 
 
 @dataclass
-class Candle:
+class Timeframe:
+    asset: Asset
     dt: datetime
     open: Decimal
     high: Decimal
@@ -59,12 +60,6 @@ class Candle:
     order_book: OrderBook
     currency: Currency
     features: Features
-
-
-@dataclass
-class Timeframe:
-    asset: Asset
-    candles: List[Candle] = field(default_factory=list)
 
 
 @dataclass
