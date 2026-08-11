@@ -1,1 +1,10 @@
-Nothing needs to be added to the .gitignore file since only a README.md file was modified and no build artifacts, dependencies, or temporary files were included in the changes.
+```
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
+```
