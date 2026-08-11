@@ -40,9 +40,11 @@ src/
     ├── db/          # Database providers (SQLite)
     │   ├── __init__.py
     │   └── base.py
-    ├── llm/         # LLM providers (GPTunnel)
+    ├── llm/         # LLM providers
     │   ├── __init__.py
-    │   └── base.py
+    │   ├── base.py        # Abstract LLMProvider interface
+    │   ├── gptunnel.py    # GPTunnel implementation
+    │   └── factory.py     # LLM provider factory
     ├── rag/         # RAG provider
     │   ├── __init__.py
     │   └── base.py
@@ -52,6 +54,8 @@ src/
 ```
 
 ## Usage
+
+### Option 1: Manual initialization
 
 ```python
 from src.config import config
@@ -97,3 +101,59 @@ market_orchestrator = NewsMarketOrchestrator(
 # Execute
 market_orchestrator.execute()
 ```
+
+### Option 2: Using LLM Provider Factory (recommended)
+
+```python
+from src.config import config
+from src.providers.llm import LLMProviderFactory
+from src.providers.db import (
+    SQLiteEmbeddingProvider,
+    SQLiteVectorDBProvider,
+    SQLiteDocumentsDBProvider,
+    SQLiteDatabaseProvider,
+)
+from src.providers.rag import RAGProvider
+from src.providers.tinvest import TinvestProviderImpl
+from src.orchestration import NewsAnalysis, NewsOrchestrator, NewsMarketOrchestrator
+
+# Initialize LLM provider via factory (reads from .env)
+llm = LLMProviderFactory.create_provider()
+
+# Initialize other providers
+embedding = SQLiteEmbeddingProvider(model_name=config.rag_embedding_model)
+vdb = SQLiteVectorDBProvider(db_path=config.sqlite_db_path)
+ddb = SQLiteDocumentsDBProvider(db_path=config.sqlite_db_path)
+rag = RAGProvider(embedding=embedding, vdb=vdb, ddb=ddb)
+
+tinvest = TinvestProviderImpl(
+    api_key=config.tinvest_api_key,
+    sandbox=config.tinvest_sandbox,
+)
+
+db = SQLiteDatabaseProvider(db_path=config.sqlite_db_path)
+
+# Initialize orchestration
+analysis = NewsAnalysis(llm=llm, rag=rag)
+news_orchestrator = NewsOrchestrator(tinvest_provider=tinvest, news_analysis=analysis)
+market_orchestrator = NewsMarketOrchestrator(
+    news_orchestrator=news_orchestrator,
+    tinvest_provider=tinvest,
+    db=db,
+)
+
+# Execute
+market_orchestrator.execute()
+```
+
+## Configuration
+
+Edit `.env` file to configure the system:
+
+- `LLM_PROVIDER_TYPE` - LLM provider type (`gptunnel`, `ollama`, etc.)
+- `LLM_API_KEY` - API key for the selected LLM provider
+- `LLM_API_URL` - API endpoint URL (for GPTunnel: `https://gptunnel.ru/v1/chat/completions`)
+- `LLM_DEFAULT_MODEL` - Default model name (e.g., `qwen3.8`, `gpt-4o`)
+- `TINVEST_API_KEY` - T-Invest API key
+- `SQLITE_DB_PATH` - Path to SQLite database
+- Other settings as needed
