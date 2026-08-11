@@ -19,9 +19,10 @@ class Config:
 
     # LLM (GPTunnel)
     llm_provider: str = "gptunnel"
-    llm_api_url: str = ""
+    llm_api_url: str = "https://gptunnel.ru/v1/chat/completions"
     llm_api_key: str = ""
-    llm_default_model: str = "gpt-4o-mini"
+    llm_default_model: str = "qwen3.8"
+    llm_use_wallet_balance: bool = True
 
     # Database
     db_provider: str = "sqlite"
@@ -54,9 +55,10 @@ class Config:
             tinvest_api_key=os.getenv("TINVEST_API_KEY", ""),
             tinvest_sandbox=os.getenv("TINVEST_SANDBOX", "false").lower() == "true",
             llm_provider=os.getenv("LLM_PROVIDER", cls.llm_provider),
-            llm_api_url=os.getenv("LLM_API_URL", ""),
+            llm_api_url=os.getenv("LLM_API_URL", cls.llm_api_url),
             llm_api_key=os.getenv("LLM_API_KEY", ""),
             llm_default_model=os.getenv("LLM_DEFAULT_MODEL", cls.llm_default_model),
+            llm_use_wallet_balance=os.getenv("LLM_USE_WALLET_BALANCE", "true").lower() == "true",
             db_provider=os.getenv("DB_PROVIDER", cls.db_provider),
             sqlite_db_path=os.getenv("SQLITE_DB_PATH", cls.sqlite_db_path),
             rag_embedding_model=os.getenv("RAG_EMBEDDING_MODEL", cls.rag_embedding_model),
