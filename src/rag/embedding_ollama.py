@@ -15,19 +15,18 @@ from .embedding_base import EmbeddingProvider
 class OllamaEmbedding(EmbeddingProvider):
     """Ollama embedding provider."""
 
-    def __init__(self, model: str = None, api_url: str = None):
+    def __init__(self, model: str = None, api_url: str = None, embedding_dim: int = None):
         """
         Initialize Ollama embedding provider.
 
         Args:
             model: Model name. Defaults to OLLAMA_EMBEDDING_MODEL env var.
             api_url: Ollama API URL. Defaults to OLLAMA_API_URL env var.
+            embedding_dim: Dimension of embeddings. Defaults to EMBEDDING_DIM env var.
         """
         self.model = model or os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
         self.api_url = api_url or os.getenv("OLLAMA_API_URL", "http://localhost:11434")
-        
-        # Cache embedding dimension (will be set after first call)
-        self._embedding_dim = None
+        self._embedding_dim = embedding_dim or int(os.getenv("EMBEDDING_DIM", "768"))
 
     def embed(self, texts: List[str]) -> np.ndarray:
         """
@@ -71,13 +70,4 @@ class OllamaEmbedding(EmbeddingProvider):
         Returns:
             Integer dimension of embeddings.
         """
-        if self._embedding_dim is None:
-            # Try to get dimension by embedding a test string
-            try:
-                test_result = self.embed(["test"])
-                self._embedding_dim = test_result.shape[1]
-            except Exception:
-                # Default to common dimension if API call fails
-                self._embedding_dim = 768  # Common for nomic-embed-text
-        
         return self._embedding_dim

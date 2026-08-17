@@ -15,7 +15,7 @@ from .embedding_base import EmbeddingProvider
 class GPTunnelEmbedding(EmbeddingProvider):
     """GPTunnel embedding provider."""
 
-    def __init__(self, api_key: str = None, model: str = None, api_url: str = None):
+    def __init__(self, api_key: str = None, model: str = None, api_url: str = None, embedding_dim: int = None):
         """
         Initialize GPTunnel embedding provider.
 
@@ -23,13 +23,12 @@ class GPTunnelEmbedding(EmbeddingProvider):
             api_key: GPTunnel API key. Defaults to GPTUNNEL_API_KEY env var.
             model: Model name. Defaults to GPTUNNEL_EMBEDDING_MODEL env var.
             api_url: API URL. Defaults to GPTUNNEL_API_URL env var.
+            embedding_dim: Dimension of embeddings. Defaults to EMBEDDING_DIM env var.
         """
         self.api_key = api_key or os.getenv("GPTUNNEL_API_KEY", "")
         self.model = model or os.getenv("GPTUNNEL_EMBEDDING_MODEL", "text-embedding-3-small")
         self.api_url = api_url or os.getenv("GPTUNNEL_API_URL", "https://api.gptunnel.ru/v1")
-        
-        # Cache embedding dimension (will be set after first call)
-        self._embedding_dim = None
+        self._embedding_dim = embedding_dim or int(os.getenv("EMBEDDING_DIM", "1536"))
 
     def embed(self, texts: List[str]) -> np.ndarray:
         """
@@ -74,13 +73,4 @@ class GPTunnelEmbedding(EmbeddingProvider):
         Returns:
             Integer dimension of embeddings.
         """
-        if self._embedding_dim is None:
-            # Try to get dimension by embedding a test string
-            try:
-                test_result = self.embed(["test"])
-                self._embedding_dim = test_result.shape[1]
-            except Exception:
-                # Default to common dimension if API call fails
-                self._embedding_dim = 1536  # Common for text-embedding-3-small
-        
         return self._embedding_dim
