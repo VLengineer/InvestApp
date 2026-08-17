@@ -1,159 +1,292 @@
 # News Market Analyzer
 
-News market analysis system using T-Invest API, LLM (GPTunnel), and RAG.
+Система автоматизированного анализа финансовых новостей с оценкой их влияния на рынок на основе LLM и RAG.
 
-## Setup
+## 📋 Описание
 
-1. Copy `.env.example` to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
+**News Market Analyzer** анализирует новости из T-Invest API, классифицирует их, находит методологический контекст в базе знаний и генерирует:
+- Текстовый аналитический отчёт
+- 7 количественных метрик влияния на рынок (сентимент, волатильность, объёмы, отраслевое влияние, кратко/среднесрочные эффекты, уверенность)
 
-2. Fill in your credentials in `.env`:
-   - `TINVEST_API_KEY` - Your T-Invest API key
-   - `LLM_API_KEY` - Your GPTunnel API key
-   - Other settings as needed
-
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-## Project Structure
+## 🏗️ Архитектура
 
 ```
 src/
-├── __init__.py
-├── config/          # Configuration management
-│   ├── __init__.py
-│   └── settings.py
-├── domain/          # Domain models
-│   ├── __init__.py
-│   └── models.py
-├── orchestration/   # Orchestration layer
-│   ├── __init__.py
-│   ├── analysis.py
-│   ├── news_orchestrator.py
-│   └── market_orchestrator.py
-└── providers/       # External service providers
-    ├── __init__.py
-    ├── db/          # Database providers (SQLite)
-    │   ├── __init__.py
-    │   └── base.py
-    ├── llm/         # LLM providers
-    │   ├── __init__.py
-    │   ├── base.py        # Abstract LLMProvider interface
-    │   ├── gptunnel.py    # GPTunnel implementation
-    │   └── factory.py     # LLM provider factory
-    ├── rag/         # RAG provider
-    │   ├── __init__.py
-    │   └── base.py
-    └── tinvest/     # T-Invest provider
-        ├── __init__.py
-        └── base.py
+├── config/              # Конфигурация через .env
+├── domain/              # Доменные модели
+│   └── models.py        # NewsItem, ImpactScores, Candle, Timeframe
+├── orchestration/       # Бизнес-логика
+│   ├── analysis.py      # Движок анализа (4 этапа)
+│   ├── news_orchestrator.py  # Сбор и анализ новостей
+│   ├── market_orchestrator.py # Главный пайплайн
+│   └── prompt_builder.py     # Шаблоны промптов для LLM
+├── providers/           # Внешние сервисы
+│   ├── llm/             # LLM-провайдеры (GPTunnel, Ollama)
+│   │   ├── base.py      # Абстрактный интерфейс
+│   │   ├── gptunnel.py  # GPTunnel API
+│   │   └── ollama.py    # Локальная Ollama
+│   ├── rag/             # RAG-компоненты
+│   │   ├── rag_provider.py  # Основной RAG-провайдер
+│   │   ├── embedding.py     # Векторизация текста
+│   │   ├── vector_db.py     # FAISS для поиска
+│   │   └── document_db.py   # SQLite для документов
+│   ├── tinvest/         # T-Invest API клиент
+│   │   ├── base.py      # Абстрактный интерфейс
+│   │   └── client.py    # Реализация клиента
+│   └── db/              # Базы данных
+│       └── sqlite_db.py # SQLite обёртка
+└── tests/               # Тесты
+    ├── test_analysis.py
+    ├── test_rag.py
+    ├── test_llm.py
+    └── test_orchestrators.py
 ```
 
-## Usage
+## ⚙️ Установка
 
-### Option 1: Manual initialization
+### Требования
+- Python 3.9+
+- API ключи: T-Invest, GPTunnel (опционально)
+- Docker (опционально, для Ollama)
 
+### Шаг 1: Клонирование
+```bash
+git clone <repository-url>
+cd news-market-analyzer
+```
+
+### Шаг 2: Создание виртуального окружения
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate     # Windows
+```
+
+### Шаг 3: Установка зависимостей
+```bash
+pip install -r requirements.txt
+```
+
+### Шаг 4: Настройка переменных окружения
+Создайте файл `.env` в корне проекта:
+
+```env
+# T-Invest API
+TINVEST_API_KEY=your_tinvest_api_key
+TINVEST_SANDBOX=true
+
+# LLM Provider (выберите один)
+LLM_PROVIDER=gptunnel  # или ollama
+GPTUNNEL_API_KEY=your_gptunnel_api_key
+GPTUNNEL_MODEL=qwen3.8
+
+# Ollama (если используется локально)
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3
+
+# RAG Configuration
+EMBEDDING_PROVIDER=sentence-transformers
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+RAG_TOP_K=3
+
+# Database
+DATABASE_PATH=data/news_analyzer.db
+```
+
+### Шаг 5: Запуск Ollama (опционально)
+Если используете локальную Ollama:
+```bash
+docker run -d -p 11434:11434 --name ollama ollama/ollama
+docker exec -it ollama ollama pull llama3
+```
+
+## 🚀 Использование
+
+### Быстрый старт
+```bash
+python src/main.py
+```
+
+### Программный вызов
 ```python
-from src.config import config
-from src.providers.llm import GPTunnelProvider
-from src.providers.db import (
-    SQLiteEmbeddingProvider,
-    SQLiteVectorDBProvider,
-    SQLiteDocumentsDBProvider,
-    SQLiteDatabaseProvider,
-)
-from src.providers.rag import RAGProvider
-from src.providers.tinvest import TinvestProviderImpl
-from src.orchestration import NewsAnalysis, NewsOrchestrator, NewsMarketOrchestrator
+import asyncio
+from src.orchestration.market_orchestrator import NewsMarketOrchestrator
 
-# Initialize providers
-llm = GPTunnelProvider(
-    api_url=config.llm_api_url,
-    api_key=config.llm_api_key,
-    default_model=config.llm_default_model,
-)
+async def main():
+    orchestrator = NewsMarketOrchestrator()
+    
+    # Анализ последних новостей
+    results = await orchestrator.analyze_latest_news(limit=5)
+    
+    for result in results:
+        print(f"Новость: {result.news.headline}")
+        print(f"Сентимент: {result.scores.market_sentiment}")
+        print(f"Анализ: {result.analysis_text[:200]}...")
+        print("-" * 80)
 
-embedding = SQLiteEmbeddingProvider(model_name=config.rag_embedding_model)
-vdb = SQLiteVectorDBProvider(db_path=config.sqlite_db_path)
-ddb = SQLiteDocumentsDBProvider(db_path=config.sqlite_db_path)
-rag = RAGProvider(embedding=embedding, vdb=vdb, ddb=ddb)
-
-tinvest = TinvestProviderImpl(
-    api_key=config.tinvest_api_key,
-    sandbox=config.tinvest_sandbox,
-)
-
-db = SQLiteDatabaseProvider(db_path=config.sqlite_db_path)
-
-# Initialize orchestration
-analysis = NewsAnalysis(llm=llm, rag=rag)
-news_orchestrator = NewsOrchestrator(tinvest_provider=tinvest, news_analysis=analysis)
-market_orchestrator = NewsMarketOrchestrator(
-    news_orchestrator=news_orchestrator,
-    tinvest_provider=tinvest,
-    db=db,
-)
-
-# Execute
-market_orchestrator.execute()
+asyncio.run(main())
 ```
 
-### Option 2: Using LLM Provider Factory (recommended)
-
+### Анализ конкретной новости
 ```python
-from src.config import config
-from src.providers.llm import LLMProviderFactory
-from src.providers.db import (
-    SQLiteEmbeddingProvider,
-    SQLiteVectorDBProvider,
-    SQLiteDocumentsDBProvider,
-    SQLiteDatabaseProvider,
-)
-from src.providers.rag import RAGProvider
-from src.providers.tinvest import TinvestProviderImpl
-from src.orchestration import NewsAnalysis, NewsOrchestrator, NewsMarketOrchestrator
+from src.domain.models import NewsItem
+from src.orchestration.analysis import NewsAnalysisEngine
 
-# Initialize LLM provider via factory (reads from .env)
-llm = LLMProviderFactory.create_provider()
+async def analyze_single_news():
+    news = NewsItem(
+        headline="ЦБ повысил ключевую ставку до 16%",
+        text="Банк России принял решение повысить ключевую ставку...",
+        source="T-Invest",
+        published_at="2024-01-15T10:00:00Z"
+    )
+    
+    engine = NewsAnalysisEngine()
+    result = await engine.analyze_news(news)
+    
+    print(result.scores)
 
-# Initialize other providers
-embedding = SQLiteEmbeddingProvider(model_name=config.rag_embedding_model)
-vdb = SQLiteVectorDBProvider(db_path=config.sqlite_db_path)
-ddb = SQLiteDocumentsDBProvider(db_path=config.sqlite_db_path)
-rag = RAGProvider(embedding=embedding, vdb=vdb, ddb=ddb)
-
-tinvest = TinvestProviderImpl(
-    api_key=config.tinvest_api_key,
-    sandbox=config.tinvest_sandbox,
-)
-
-db = SQLiteDatabaseProvider(db_path=config.sqlite_db_path)
-
-# Initialize orchestration
-analysis = NewsAnalysis(llm=llm, rag=rag)
-news_orchestrator = NewsOrchestrator(tinvest_provider=tinvest, news_analysis=analysis)
-market_orchestrator = NewsMarketOrchestrator(
-    news_orchestrator=news_orchestrator,
-    tinvest_provider=tinvest,
-    db=db,
-)
-
-# Execute
-market_orchestrator.execute()
+asyncio.run(analyze_single_news())
 ```
 
-## Configuration
+## 🔍 Как это работает
 
-Edit `.env` file to configure the system:
+### Пайплайн анализа (4 этапа)
 
-- `LLM_PROVIDER_TYPE` - LLM provider type (`gptunnel`, `ollama`, etc.)
-- `LLM_API_KEY` - API key for the selected LLM provider
-- `LLM_API_URL` - API endpoint URL (for GPTunnel: `https://gptunnel.ru/v1/chat/completions`)
-- `LLM_DEFAULT_MODEL` - Default model name (e.g., `qwen3.8`, `gpt-4o`)
-- `TINVEST_API_KEY` - T-Invest API key
-- `SQLITE_DB_PATH` - Path to SQLite database
-- Other settings as needed
+1. **Классификация**
+   - LLM определяет тип новости: positive/negative/neutral/macroeconomic/corporate/regulatory
+   - Пример: "Повышение ставки" → macroeconomic, negative
+
+2. **Генерация RAG-запросов**
+   - Создаются поисковые запросы для нахождения методологического контекста
+   - Пример: "влияние повышения ставки на рынок акций", "методика оценки макроэкономических новостей"
+
+3. **Поиск контекста (RAG)**
+   - Векторизация запросов через embedding модель
+   - Поиск ближайших документов в FAISS
+   - Извлечение оригинальных текстов из SQLite
+
+4. **Генерация анализа и оценок**
+   - LLM создаёт развёрнутый аналитический отчёт с опорой на найденные методики
+   - Генерация 7 численных метрик в формате JSON:
+     - `market_sentiment` (-1.0 до 1.0)
+     - `volatility_impact` (-1.0 до 1.0)
+     - `volume_impact` (-1.0 до 1.0)
+     - `sector_impact` (-1.0 до 1.0)
+     - `short_term_effect` (-1.0 до 1.0)
+     - `medium_term_effect` (-1.0 до 1.0)
+     - `confidence_score` (0.0 до 1.0)
+
+## 🧪 Тестирование
+
+### Запуск всех тестов
+```bash
+pytest tests/ -v
+```
+
+### Запуск по модулям
+```bash
+# Тесты RAG
+pytest tests/test_rag.py -v
+
+# Тесты анализа
+pytest tests/test_analysis.py -v
+
+# Тесты оркестраторов
+pytest tests/test_orchestrators.py -v
+
+# Тесты LLM провайдеров
+pytest tests/test_llm.py -v
+```
+
+### Покрытие тестами
+- ✅ RAG: добавление документов, поиск, векторизация
+- ✅ Анализ: классификация, генерация запросов, парсинг оценок
+- ✅ Оркестраторы: интеграционные сценарии
+- ✅ LLM: мокирование ответов, обработка ошибок
+
+## 📊 Доменные модели
+
+### NewsItem
+```python
+{
+    "headline": "Заголовок новости",
+    "text": "Полный текст новости",
+    "source": "Источник",
+    "published_at": "2024-01-15T10:00:00Z"
+}
+```
+
+### ImpactScores
+```python
+{
+    "market_sentiment": 0.75,      # Общий сентимент
+    "volatility_impact": 0.60,     # Влияние на волатильность
+    "volume_impact": 0.45,         # Влияние на объём
+    "sector_impact": -0.30,        # Отраслевое влияние
+    "short_term_effect": 0.80,     # Краткосрочный эффект
+    "medium_term_effect": 0.50,    # Среднесрочный эффект
+    "confidence_score": 0.85       # Уверенность анализа
+}
+```
+
+## 🔧 Конфигурация LLM провайдеров
+
+### GPTunnel (облачный)
+```env
+LLM_PROVIDER=gptunnel
+GPTUNNEL_API_KEY=your_key
+GPTUNNEL_MODEL=qwen3.8
+```
+
+### Ollama (локальный)
+```env
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3
+```
+
+## 🗄️ База знаний RAG
+
+### Добавление документов
+```python
+from src.providers.rag.rag_provider import RAGProvider
+
+rag = RAGProvider()
+
+documents = [
+    {
+        "content": "Методика оценки влияния макроэкономических новостей...",
+        "metadata": {"type": "methodology", "topic": "macroeconomics"}
+    }
+]
+
+await rag.add_documents(documents)
+```
+
+### Поиск контекста
+```python
+results = await rag.search(
+    query="влияние повышения ставки на рынок",
+    top_k=3
+)
+
+for doc in results:
+    print(doc.content)
+    print(doc.metadata)
+```
+
+## 📝 Лицензия
+
+MIT License
+
+## 🤝 Вклад в проект
+
+1. Fork репозитория
+2. Создайте ветку (`git checkout -b feature/amazing-feature`)
+3. Commit изменений (`git commit -m 'Add amazing feature'`)
+4. Push в ветку (`git push origin feature/amazing-feature`)
+5. Откройте Pull Request
+
+## 📞 Контакты
+
+Вопросы и предложения: откройте Issue в репозитории.

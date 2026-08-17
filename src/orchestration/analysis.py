@@ -30,7 +30,7 @@ class NewsAnalysis:
         self.rag = rag
         self.prompt_builder = prompt_builder or PromptBuilder()
 
-    async def start_analysis(self, news: NewsItem) -> NewsAnalysisItem:
+    def start_analysis(self, news: NewsItem) -> NewsAnalysisItem:
         """Start analysis of a news item.
         
         Args:
@@ -40,17 +40,17 @@ class NewsAnalysis:
             NewsAnalysisItem with classification, analytics, and impact scores.
         """
         # Step 1: Classify the news
-        classification = await self._classify(news)
+        classification = self._classify(news)
         
         # Step 2: Build RAG queries and get context documents
-        rag_queries = await self._build_rag_queries(news, classification)
+        rag_queries = self._build_rag_queries(news, classification)
         context_documents = self.rag.get_documents(rag_queries)
         
         # Step 3: Generate analytics text
-        analytics = await self._analyze(news, classification, context_documents)
+        analytics = self._analyze(news, classification, context_documents)
         
         # Step 4: Generate impact scores
-        impact_scores = await self._generate_impact_scores(
+        impact_scores = self._generate_impact_scores(
             news, classification, analytics, context_documents
         )
         
@@ -62,7 +62,7 @@ class NewsAnalysis:
             timeframe=None
         )
 
-    async def _classify(self, news: NewsItem) -> str:
+    def _classify(self, news: NewsItem) -> str:
         """Classify the news item.
         
         Args:
@@ -75,7 +75,7 @@ class NewsAnalysis:
         response = self.llm.generate(prompt, model="qwen3.8")
         return response.strip().lower()
 
-    async def _build_rag_queries(
+    def _build_rag_queries(
         self, 
         news: NewsItem, 
         classification: str
@@ -96,7 +96,7 @@ class NewsAnalysis:
         queries = self._parse_json_array(response)
         return queries if queries else ["market analysis methodology"]
 
-    async def _analyze(
+    def _analyze(
         self, 
         news: NewsItem, 
         classification: str, 
@@ -118,7 +118,7 @@ class NewsAnalysis:
         response = self.llm.generate(prompt, model="qwen3.8")
         return response.strip()
 
-    async def _generate_impact_scores(
+    def _generate_impact_scores(
         self,
         news: NewsItem,
         classification: str,
