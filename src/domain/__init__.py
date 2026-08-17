@@ -10,6 +10,7 @@ from .models import (
     Timeframe,
     NewsItem,
     NewsAnalysisItem,
+    ImpactScores,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "Timeframe",
     "NewsItem",
     "NewsAnalysisItem",
+    "ImpactScores",
 ]

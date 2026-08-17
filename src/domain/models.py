@@ -3,8 +3,66 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Dict
+from typing import List, Dict, Optional
 from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+
+class ImpactScores(BaseModel):
+    """Market impact scores from news analysis."""
+    
+    market_sentiment: float = Field(
+        default=0.0,
+        description="Overall market sentiment score (-1.0 to 1.0)",
+        ge=-1.0,
+        le=1.0
+    )
+    volatility_impact: float = Field(
+        default=0.0,
+        description="Expected volatility impact (0.0 to 1.0)",
+        ge=0.0,
+        le=1.0
+    )
+    volume_impact: float = Field(
+        default=0.0,
+        description="Expected trading volume impact (0.0 to 1.0)",
+        ge=0.0,
+        le=1.0
+    )
+    sector_impact: float = Field(
+        default=0.0,
+        description="Sector-specific impact score (-1.0 to 1.0)",
+        ge=-1.0,
+        le=1.0
+    )
+    short_term_effect: float = Field(
+        default=0.0,
+        description="Short-term price effect prediction (-1.0 to 1.0)",
+        ge=-1.0,
+        le=1.0
+    )
+    medium_term_effect: float = Field(
+        default=0.0,
+        description="Medium-term price effect prediction (-1.0 to 1.0)",
+        ge=-1.0,
+        le=1.0
+    )
+    confidence_score: float = Field(
+        default=0.0,
+        description="Confidence in the analysis (0.0 to 1.0)",
+        ge=0.0,
+        le=1.0
+    )
+
+    def to_dict(self) -> Dict[str, float]:
+        """Convert to dictionary."""
+        return self.model_dump()
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, float]) -> "ImpactScores":
+        """Create from dictionary."""
+        return cls(**data)
 
 
 @dataclass
@@ -63,6 +121,20 @@ class Timeframe:
 
 
 @dataclass
+class Candle:
+    """Candle data with OHLCV and additional info."""
+    dt: datetime
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: int
+    order_book: OrderBook = field(default_factory=OrderBook)
+    currency: Currency = None
+    features: Features = field(default_factory=Features)
+
+
+@dataclass
 class NewsItem:
     id: UUID
     title: str
@@ -77,5 +149,5 @@ class NewsAnalysisItem:
     news: NewsItem
     classification: str
     analytics: str
-    impact_scores: Dict[str, float] = field(default_factory=dict)
-    timeframe: Timeframe = None
+    impact_scores: ImpactScores = field(default_factory=ImpactScores)
+    timeframe: Optional[Timeframe] = None
