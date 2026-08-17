@@ -145,6 +145,15 @@ class NewsItem:
 
 
 @dataclass
+class NewsAnalysisResult:
+    """Результат анализа новости."""
+    news: NewsItem
+    scores: ImpactScores
+    analysis_text: str
+    classification: str = "neutral"
+
+
+@dataclass
 class NewsAnalysisItem:
     news: NewsItem
     classification: str
