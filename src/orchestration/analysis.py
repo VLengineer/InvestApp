@@ -72,7 +72,7 @@ class NewsAnalysis:
             Classification label.
         """
         prompt = self.prompt_builder.build_classification_prompt(news)
-        response = self.llm.generate(prompt, model=self.llm.default_model if hasattr(self.llm, 'default_model') else "qwen3.8")
+        response = self.llm.generate(prompt, model="qwen3.8")
         return response.strip().lower()
 
     def _build_rag_queries(
@@ -90,7 +90,7 @@ class NewsAnalysis:
             List of query strings for RAG.
         """
         prompt = self.prompt_builder.build_rag_query_prompt(news, classification)
-        response = self.llm.generate(prompt, model=self.llm.default_model if hasattr(self.llm, 'default_model') else "qwen3.8")
+        response = self.llm.generate(prompt, model="qwen3.8")
         
         # Parse JSON array from response
         queries = self._parse_json_array(response)
@@ -115,7 +115,7 @@ class NewsAnalysis:
         prompt = self.prompt_builder.build_analytics_prompt(
             news, classification, context_documents
         )
-        response = self.llm.generate(prompt, model=self.llm.default_model if hasattr(self.llm, 'default_model') else "qwen3.8")
+        response = self.llm.generate(prompt, model="qwen3.8")
         return response.strip()
 
     def _generate_impact_scores(
@@ -139,7 +139,7 @@ class NewsAnalysis:
         prompt = self.prompt_builder.build_impact_scores_prompt(
             news, classification, analytics, context_documents
         )
-        response = self.llm.generate(prompt, model=self.llm.default_model if hasattr(self.llm, 'default_model') else "qwen3.8")
+        response = self.llm.generate(prompt, model="qwen3.8")
         
         # Parse JSON object from response
         scores_data = self._parse_json_object(response)
