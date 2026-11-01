@@ -40,7 +40,8 @@ class KnowledgeBaseReader:
         """Файл .json, лежащий внутри папки с именем «Общий json» (любая глубина)."""
         if path.suffix.lower() not in _JSON_SUFFIXES:
             return False
-        parents = {p.name.lower() for p in path.relative_to(self._kb_root).parts[:-1]}
+        # parts возвращает строки (имена компонентов пути), а не объекты Path
+        parents = {p.lower() for p in path.relative_to(self._kb_root).parts[:-1]}
         return any(name in parents for name in self._common_dir_names)
 
     def discover_files(self) -> list[Path]:
