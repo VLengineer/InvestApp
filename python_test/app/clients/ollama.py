@@ -1,6 +1,6 @@
 """Клиент Ollama (порт 11435) для эмбеддингов: Circuit Breaker + Retry + таймауты.
 
-Используется нативный REST API: POST /api/embeddings {"model", "prompt"} -> {"embedding": [...]}.
+Используется нативный REST API: POST /api/embed {"model", "prompt"} -> {"embedding": [...]}.
 Модель: nomic-embed-text (768 измерений).
 """
 
@@ -71,7 +71,7 @@ class OllamaEmbeddingClient:
         self._settings = settings
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
-            base_url=settings.ollama_base_url.rstrip("/"),
+            base_url=settings.ollama_base_url.rstrip("/") + "/",
             timeout=httpx.Timeout(settings.request_timeout_s, connect=10.0),
             limits=httpx.Limits(max_connections=settings.index_concurrency * 2, max_keepalive_connections=4),
         )
@@ -83,7 +83,7 @@ class OllamaEmbeddingClient:
             await self._client.aclose()
 
     async def health(self) -> dict[str, str]:
-        url = f"{self._client.base_url}/api/tags"
+        url = f"{self._client.base_url}api/tags"
         started = time.perf_counter()
         logger.info("Ollama >>> GET %s (healthcheck)…", url)
         try:
@@ -120,14 +120,14 @@ class OllamaEmbeddingClient:
     async def _embed_once(self, text: str) -> list[float]:
         await self._breaker.acquire()
         payload = {"model": self._settings.embedding_model, "prompt": text, "keep_alive": "5m"}
-        url = f"{self._client.base_url}api/embeddings"
+        url = f"{self._client.base_url}api/embed"
         started = time.perf_counter()
         logger.info(
             "Ollama >>> POST %s (model=%s, prompt %d симв., timeout=%.0fs): начало запроса…",
             url, self._settings.embedding_model, len(text), self._settings.request_timeout_s,
         )
         try:
-            resp = await self._client.post("/api/embeddings", json=payload)
+            resp = await self._client.post("/api/embed", json=payload)
             resp.raise_for_status()
             vector = resp.json().get("embedding")
         except httpx.HTTPStatusError as exc:
