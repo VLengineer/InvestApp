@@ -1,5 +1,5 @@
 # RAG-индексатор базы знаний (FastAPI + PostgreSQL/pgvector + Ollama)
-FROM python:3.12-slim
+FROM python:3.12
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
