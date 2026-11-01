@@ -1,6 +1,9 @@
 __pycache__/
 *.pyc
-*.env
-.env
 get_token.py
 secret.py
+# Секреты и локальные env: в git не попадают (в репозитории только *.env.example)
+.env
+*/.env
+!.env.example
+!*/.env.example
