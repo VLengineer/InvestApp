@@ -158,3 +158,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.openapi = _custom_openapi
     return app
+
+
+# Экземпляр приложения для uvicorn (app.main:app) — без него uvicorn не находит ASGI-приложение
+app = create_app()
