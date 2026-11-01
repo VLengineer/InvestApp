@@ -45,6 +45,13 @@ async def start_indexing(
     principal: Annotated[Principal, Depends(require_scope(Scope.INDEX))],
 ) -> IndexAcceptedResponse:
     task, summary = await indexing.start(options.model_dump(exclude_none=True), requested_by=principal.subject)
+    limit_note = ""
+    if summary.get("limit_documents"):
+        limit_note = (
+            f" ВНИМАНИЕ: применён limit_documents={summary['limit_documents']}, "
+            f"полный план был {summary['to_embed_full']} концептов — чтобы проиндексировать всё, "
+            "запустите POST /index БЕЗ limit_documents."
+        )
     return IndexAcceptedResponse(
         task_id=task.task_id,
         status=task.status,
@@ -53,7 +60,7 @@ async def start_indexing(
         message=(
             f"План: файлов={summary['files_found']}, концептов всего={summary['concepts_total']}, "
             f"уникальных={summary['unique_concepts']}, уже проиндексировано={summary['already_indexed']}, "
-            f"к обработке={summary['to_embed']}. "
+            f"к обработке={summary['to_embed']}. {limit_note}"
             "Каждый шаг (вызов Ollama, ответ, запись в БД) логируется: docker compose logs -f python_test; "
             "прогресс задачи — GET /index/tasks/{task_id}, содержимое БД — GET /stats."
         ),

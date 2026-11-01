@@ -31,7 +31,15 @@ class IndexOptions(BaseModel):
 
     dry_run: bool = Field(default=False, description="Посчитать план без записи в БД/Ollama")
     force_reindex: bool = Field(default=False, description="Пересоздать эмбеддинги даже при совпадении hash")
-    limit_documents: int | None = Field(default=None, ge=1, description="Ограничить число концептов (отладка)")
+    limit_documents: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Ограничить число концептов (отладка). ВНИМАНИЕ: с limit_documents=1 будет "
+            "заиндексирован РОВНО ОДИН документ — это нормально. Для полной индексации "
+            "удалите это поле из тела запроса (не заполняйте в Swagger)."
+        ),
+    )
     source_paths: list[str] | None = Field(
         default=None,
         description=(

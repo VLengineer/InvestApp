@@ -100,13 +100,18 @@ class IndexingService:
                 continue
             to_embed.append(concept)
 
+        # ВАЖНО: limit применяется ПОСЛЕ подсчёта summary, чтобы в ответе API и в логах
+        # было видно и «полный план» (сколько осталось без лимита), и сам лимит.
+        # Иначе GET /index с limit_documents=1 выглядит как «заиндексирован только 1 документ».
         limit = options.get("limit_documents")
+        full_remaining = len(to_embed)
         if limit:
-            before_limit = len(to_embed)
             to_embed = to_embed[: int(limit)]
             logger.info(
-                "План индексации: применён limit_documents=%d — концептов к обработке %d -> %d",
-                limit, before_limit, len(to_embed),
+                "План индексации: применён limit_documents=%d — концептов к обработке %d -> %d "
+                "(это ОТЛАДОЧНЫЙ лимит: полный план был %d, для полной индексации запустите POST /index "
+                "БЕЗ limit_documents)",
+                limit, full_remaining, len(to_embed), full_remaining,
             )
 
         summary = {
@@ -116,6 +121,8 @@ class IndexingService:
             "unique_concepts": len(plan),
             "already_indexed": already_ok,
             "to_embed": len(to_embed),
+            "to_embed_full": full_remaining,  # сколько осталось бы без limit_documents
+            "limit_documents": int(limit) if limit else None,
         }
         return to_embed, summary
 
