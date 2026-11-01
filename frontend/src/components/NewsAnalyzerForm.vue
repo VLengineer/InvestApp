@@ -3,6 +3,9 @@ import { reactive, ref } from 'vue'
 
 const props = defineProps({
   webhookUrl: { type: String, required: true },
+  // Токен из окружения (VITE_N8N_AUTH_TOKEN ← N8N_AUTH_TOKEN в корневом .env).
+  // Если задан — добавляется заголовок Authorization: Bearer <token>.
+  authToken: { type: String, default: '' },
 })
 
 // Поля формы — ровно те, что уходят JSON-телом на вебхук n8n
@@ -35,9 +38,13 @@ async function analyze() {
 
   loading.value = true
   try {
+    const headers = { 'Content-Type': 'application/json' }
+    if (props.authToken) {
+      headers['Authorization'] = `Bearer ${props.authToken}`
+    }
     const response = await fetch(props.webhookUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(payload),
     })
     const text = await response.text()
@@ -54,9 +61,9 @@ async function analyze() {
     result.value = data
   } catch (e) {
     error.value = `Не удалось вызвать вебхук ${props.webhookUrl}: ${e.message}. ` +
-      'Если frontend открыт в браузере по localhost/IP хоста, а URL указывает на http://n8n:5678 — ' +
-      'браузер не знает это docker-имя: вызов должен идти через прокси /n8n-api (vite.config.js) ' +
-      'или на http://localhost:5678. Для /webhook-test сначала нажмите «Execute workflow» в n8n, ' +
+      'ERR_NAME_NOT_RESOLVED означает, что браузер пытался открыть docker-имя (n8n) — ' +
+      'обновите страницу: вызов должен идти через /n8n-api/… (прокси Vite). ' +
+      'Для /webhook-test сначала нажмите «Execute workflow» в n8n, ' +
       'для /webhook включите переключатель Active.'
   } finally {
     loading.value = false
