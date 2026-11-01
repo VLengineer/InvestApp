@@ -12,7 +12,7 @@ from typing import Sequence
 
 import httpx
 
-log = logging.getLogger("rag_indexer.embedder")
+log = logging.getLogger("python_test.embedder")
 
 
 class EmbeddingError(RuntimeError):

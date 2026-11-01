@@ -26,9 +26,9 @@ from app.schemas.indexing import (
 )
 from app.services.storage import RagStorage
 
-log = logging.getLogger("rag_indexer.api")
+log = logging.getLogger("python_test.api")
 
-router = APIRouter(prefix="/api/v1", tags=["rag-indexer"])
+router = APIRouter(tags=["rag-indexer"])
 
 Auth = Annotated[dict, Depends(require_jwt)]
 

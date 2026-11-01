@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
     try:
         await storage.open(timeout=60)
     except Exception as exc:  # noqa: BLE001 - сервис стартует и без БД, health покажет degraded
-        logging.getLogger("rag_indexer").warning("PostgreSQL пока недоступен: %s", exc)
+        logging.getLogger("python_test").warning("PostgreSQL пока недоступен: %s", exc)
     embedder = OllamaEmbedder(
         base_url=settings.ollama_base_url,
         model=settings.ollama_embed_model,
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
     app.state.storage = storage
     app.state.embedder = embedder
     app.state.indexer = Indexer(settings, storage)
-    logging.getLogger("rag_indexer").info(
+    logging.getLogger("python_test").info(
         "RAG-индексатор запущен (kb=%s, ollama=%s, model=%s)",
         settings.knowledge_base_dir, settings.ollama_base_url, settings.ollama_embed_model,
     )
@@ -69,21 +69,22 @@ app = FastAPI(
     description=(
         "Микросервис: обход knowledge_base/**/*.json, эмбеддинги через Ollama "
         "(embeddinggemma-2), хранение в PostgreSQL + pgvector "
-        "(kb_documents — документ и uuid, kb_embeddings — вектор и uuid документа)."
+        "(kb_documents — документ и uuid, kb_embeddings — вектор и uuid документа). "
+        "Health-эндпоинт: GET /api/v1/health."
     ),
     version="1.0.0",
     lifespan=lifespan,
 )
 
-app.include_router(indexing_router)
+app.include_router(indexing_router, prefix="/api/v1")
 
 
 @app.get("/", include_in_schema=False)
 async def root() -> dict:
-    return {"service": "rag-indexer", "docs": "/docs", "health": "/health"}
+    return {"service": "rag-indexer", "docs": "/docs", "health": "/api/v1/health"}
 
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    logging.getLogger("rag_indexer").exception("Необработанная ошибка на %s", request.url.path)
+    logging.getLogger("python_test").exception("Необработанная ошибка на %s", request.url.path)
     return JSONResponse(status_code=500, content={"detail": f"Внутренняя ошибка: {type(exc).__name__}"})

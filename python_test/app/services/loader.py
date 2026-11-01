@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
 
-log = logging.getLogger("rag_indexer.loader")
+log = logging.getLogger("python_test.loader")
 
 
 @dataclass

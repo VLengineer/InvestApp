@@ -24,7 +24,7 @@ from app.services.embedder import EmbeddingError, OllamaEmbedder
 from app.services.loader import Concept, load_concepts
 from app.services.storage import RagStorage, _vec_literal
 
-log = logging.getLogger("rag_indexer.indexer")
+log = logging.getLogger("python_test.indexer")
 
 
 @dataclass
