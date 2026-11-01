@@ -12,6 +12,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- gen_random_uuid()
 CREATE TABLE IF NOT EXISTS market_news_ml_dataset (
     -- 1. Базовые поля (источник и новость)
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    ticker VARCHAR(16),
     source VARCHAR(255) NOT NULL,
     title TEXT NOT NULL,
     content TEXT NOT NULL,

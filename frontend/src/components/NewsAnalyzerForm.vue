@@ -10,6 +10,7 @@ const props = defineProps({
 
 // Поля формы — ровно те, что уходят JSON-телом на вебхук n8n
 const form = reactive({
+  ticker: '',
   source: '',
   title: '',
   content: '',
@@ -34,6 +35,7 @@ async function analyze() {
     title: form.title.trim(),
     content: form.content.trim(),
     ts: form.ts,
+    ticker: form.ticker.trim(),
   }
 
   loading.value = true
@@ -77,6 +79,11 @@ function refreshTs() {
 
 <template>
   <form class="card" @submit.prevent="analyze">
+    <div class="field">
+      <label for="ticker">Тикер</label>
+      <input id="ticker" v-model="form.ticker" type="text" placeholder="например: SBER" />
+    </div>
+
     <div class="field">
       <label for="source">Источник</label>
       <input id="source" v-model="form.source" type="text" placeholder="например: Reuters" />
