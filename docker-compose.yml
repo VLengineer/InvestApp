@@ -96,7 +96,10 @@ services:
       - app_net
 
   # Vue-фронтенд «Анализатор новостей»: форма отправляет POST на
-  # http://n8n:5678/webhook/news_analizer (совпадение имён — не опечатка).
+  # http://n8n:5678/webhook/news_analizer (или /webhook-test/… в тестовом
+  # режиме; совпадение имён — не опечатка). ВАЖНО: VITE_N8N_BASE_URL должен
+  # быть именно адресом контейнера n8n в docker-сети (http://n8n:5678), а не
+  # 127.0.0.1 — внутри контейнера frontend localhost указывает на него самого.
   frontend:
     build:
       context: ./frontend
@@ -106,7 +109,12 @@ services:
     ports:
       - "${FRONTEND_BIND_IP:-0.0.0.0}:${FRONTEND_PORT:-5173}:5173"
     environment:
-      VITE_N8N_WEBHOOK_URL: "${N8N_WEBHOOK_URL:-http://n8n:5678/}webhook/news_analizer"
+      # базовый URL контейнера n8n из внутренней сети app_net (дефолт — http://n8n:5678/)
+      VITE_N8N_BASE_URL: "${N8N_CONTAINER_URL:-http://n8n:5678/}"
+      # live → /webhook/…, test → /webhook-test/…
+      VITE_N8N_WEBHOOK_MODE: "${N8N_WEBHOOK_MODE:-test}"
+      # куда dev-сервер Vite проксирует /n8n-api из браузера (внутри сети — имя сервиса)
+      N8N_PROXY_TARGET: "${N8N_CONTAINER_URL:-http://n8n:5678/}"
     depends_on:
       - n8n
     networks:
