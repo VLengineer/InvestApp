@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     db_pool_min_size: int = 1
     db_pool_max_size: int = 5
 
-    # --- Ollama (эмбеддинги) ---
-    ollama_base_url: str = "http://ollama:11434/api"
+    # --- Ollama (эмбеддинги) --- внутри docker-сети ollama слушает 11435 (OLLAMA_PORT в docker-compose.yml)
+    ollama_base_url: str = "http://ollama:11435/api"
     ollama_embed_model: str = "embeddinggemma-2"
     embedding_dim: int = 768          # ожидаемая размерность (проверяется при старте)
     embed_batch_size: int = 8         # текстов за один запрос к Ollama

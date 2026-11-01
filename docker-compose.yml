@@ -113,10 +113,14 @@ services:
       - ./python_test/.env # DATABASE_URL, JWT_SECRET, OLLAMA_* (см. python_test/.env.example)
     environment:
       PYTHONUNBUFFERED: "1"
+      # Обращение к Ollama по порту 11435 — как в блоке ollama выше (OLLAMA_PORT из .env)
+      OLLAMA_BASE_URL: "http://ollama:${OLLAMA_PORT:-11435}/api"
     volumes:
+      # Локальная папка с кодом микросервиса (правки + --reload без пересборки)
+      - ./python_test:/app
       # read-only: сервис только читает файлы базы знаний, писать в них не должен
       - ./knowledge_base:/data/knowledge_base:ro
-    command: sh -c "pip install --no-cache-dir -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8100"
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload"
     depends_on:
       postgres:
         condition: service_healthy

@@ -20,7 +20,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from app.services.loader import Concept
 
-log = logging.getLogger("rag_indexer.storage")
+log = logging.getLogger("python_test.storage")
 
 SCHEMA_SQL = """
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -73,13 +73,12 @@ class RagStorage:
         )
 
     async def open(self, timeout: float = 30) -> None:
-        await self._pool.open_async(wait=True, timeout=timeout)
-        # дождаться реального соединения (пул может стартовать раньше postgres)
-        async with self._pool.connection(timeout=timeout) as _:
-            pass
+        # wait=True синхронизируется с event loop и ждёт реального соединения
+        # (пул может стартовать раньше postgres)
+        await self._pool.open(wait=True, timeout=timeout)
 
     async def close(self) -> None:
-        await self._pool.close_async(timeout=5)
+        await self._pool.close(timeout=5)
 
     async def ensure_schema(self, embedding_dim: int | None = None) -> None:
         """Создаёт таблицы, если их нет (прод-схема всё же в init_db/01_init_rag.sql)."""
