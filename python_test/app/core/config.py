@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     jwt_audience: str | None = Field(default=None, description="Ожидаемый claim aud (env: JWT_AUDIENCE)")
     access_token_ttl_s: int = Field(default=3600, ge=60, le=86_400)
     api_keys: list[str] = Field(default_factory=list, description="Ключи X-API-Key для машинных вызовов (env: API_KEYS)")
+    admin_api_key: str | None = Field(default=None, description="Ключ для POST /auth/token (env: ADMIN_API_KEY)")
 
     # ------------------------------ Knowledge base --------------------------
     kb_root: Path = Path("/app/knowledge_base")

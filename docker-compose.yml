@@ -83,9 +83,9 @@ services:
       - "${RAG_BIND_IP:-127.0.0.1}:${RAG_PORT:-8100}:8100"
     env_file:
       - ./python_test/.env
-    volumes:
-      - ./python_test:/app
-    command: sh -c "pip install --no-cache-dir -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload"
+    # код и база знаний уже в образе (Dockerfile) — отдельные volumes/command не нужны,
+    # иначе пустой volume перекроет /app и контейнер не стартует
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload
     depends_on:
       postgres:
         condition: service_healthy
