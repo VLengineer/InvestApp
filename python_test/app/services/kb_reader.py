@@ -1,7 +1,12 @@
-"""Чтение knowledge_base: только «общие» JSON (папка ``Общий json`` на любой глубине).
+"""Чтение knowledge_base: по умолчанию только «общие» JSON (папка ``Общий json``).
+
+ВНИМАНИЕ (частая причина «индексация прошла, а БД пустая»): если ни один файл не
+подходит под фильтр ``common_dir_names``, список common_dir_names очищается и
+берутся ВСЕ *.json рекурсивно — с предупреждением в лог. Пустой план при этом
+никогда не остаётся незамеченным: он логируется явно.
 
 Паттерн: Strategy — политика выбора файлов вынесена в отдельный метод, чтобы её
-можно было заменить (например, на глобальный поиск всех *.json) без правды в остальном коде.
+можно было заменить (например, на глобальный поиск всех *.json) без правки в остальном коде.
 Все операции с файлами выполняются в thread pool, чтобы не блокировать event loop.
 """
 
@@ -37,9 +42,14 @@ class KnowledgeBaseReader:
 
     # ------------------------------ выбор файлов ----------------------------
     def _is_common_json(self, path: Path) -> bool:
-        """Файл .json, лежащий внутри папки с именем «Общий json» (любая глубина)."""
+        """Файл .json, лежащий внутри папки с именем из common_dir_names (любая глубина).
+
+        Пустой список фильтров = «разрешены все *.json рекурсивно».
+        """
         if path.suffix.lower() not in _JSON_SUFFIXES:
             return False
+        if not self._common_dir_names:
+            return True
         # parts возвращает строки (имена компонентов пути), а не объекты Path
         parents = {p.lower() for p in path.relative_to(self._kb_root).parts[:-1]}
         return any(name in parents for name in self._common_dir_names)
@@ -47,7 +57,7 @@ class KnowledgeBaseReader:
     def discover_files(self) -> list[Path]:
         if not self._kb_root.is_dir():
             raise KnowledgeBaseError(f"Каталог knowledge_base не найден: {self._kb_root}")
-        files: list[Path] = []
+        candidates: list[Path] = []
         for path in sorted(self._kb_root.rglob("*")):
             if not path.is_file():
                 continue
@@ -58,8 +68,22 @@ class KnowledgeBaseReader:
                 continue
             if resolved.name == "desktop.ini":
                 continue
-            if self._is_common_json(resolved):
-                files.append(resolved)
+            candidates.append(resolved)
+
+        files = [p for p in candidates if self._is_common_json(p)]
+        logger.info(
+            "Поиск файлов: всего .json в %s=%d, из них в папках %s=%d",
+            self._kb_root, sum(1 for p in candidates if p.suffix.lower() in _JSON_SUFFIXES),
+            ", ".join(self._common_dir_names) or "(фильтр выключен)", len(files),
+        )
+        if not files and self._common_dir_names:
+            # fallback: фильтр «Общий json» ничего не нашёл — берём все *.json рекурсивно,
+            # иначе индексация молча завершается пустым планом и БД остаётся пустой
+            files = [p for p in candidates if p.suffix.lower() in _JSON_SUFFIXES]
+            logger.warning(
+                "В папках %s нет ни одного JSON — fallback: индексируем ВСЕ *.json рекурсивно (%d шт.)",
+                ", ".join(self._common_dir_names), len(files),
+            )
         return files
 
     # -------------------------------- чтение --------------------------------
@@ -85,10 +109,10 @@ class KnowledgeBaseReader:
         files = self.discover_files()
         if not files:
             raise KnowledgeBaseError(
-                f"В {self._kb_root} нет ни одного «общего» JSON (ожидаемая папка: "
-                f"{', '.join(self._common_dir_names)})"
+                f"В {self._kb_root} нет ни одного JSON-файла (фильтр папок: "
+                f"{', '.join(self._common_dir_names) or 'все *.json'})"
             )
-        logger.info("Найдено общих JSON-файлов: %d", len(files))
+        logger.info("Отобрано JSON-файлов к чтению: %d", len(files))
         sources = await asyncio.gather(*(asyncio.to_thread(self._read_one_sync, f) for f in files))
         for source in sources:
             if source.error:
