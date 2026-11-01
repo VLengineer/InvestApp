@@ -32,7 +32,14 @@ class IndexOptions(BaseModel):
     dry_run: bool = Field(default=False, description="Посчитать план без записи в БД/Ollama")
     force_reindex: bool = Field(default=False, description="Пересоздать эмбеддинги даже при совпадении hash")
     limit_documents: int | None = Field(default=None, ge=1, description="Ограничить число концептов (отладка)")
-    source_paths: list[str] | None = Field(default=None, description="Фильтр по относительным путям файлов")
+    source_paths: list[str] | None = Field(
+        default=None,
+        description=(
+            "Фильтр по относительным путям файлов (например "
+            "'1. Фундаментальный анализ. json/Общий json/United.json'). "
+            "НЕ заполняйте в Swagger вручную — без фильтра будут взяты все файлы."
+        ),
+    )
 
 
 class IndexAcceptedResponse(BaseModel):

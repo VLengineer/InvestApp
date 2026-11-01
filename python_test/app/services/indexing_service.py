@@ -53,7 +53,19 @@ class IndexingService:
 
         wanted_paths = set(options.get("source_paths") or [])
         if wanted_paths:
+            available = sorted({c.source_path for c in concepts})
+            before = len(concepts)
             concepts = [c for c in concepts if c.source_path in wanted_paths]
+            logger.info(
+                "План индексации: фильтр source_paths=%s — концептов %d -> %d",
+                sorted(wanted_paths), before, len(concepts),
+            )
+            if not concepts and before:
+                logger.warning(
+                    "План индексации: source_paths не совпали ни с одним файлом KnowledgeBaseReader; "
+                    "доступные пути (первые 10 из %d): %s",
+                    len(available), ", ".join(available[:10]),
+                )
 
         # дедупликация внутри запуска (один hash может встречаться в разных файлах)
         unique: dict[str, Concept] = {}
@@ -125,9 +137,12 @@ class IndexingService:
             return task, summary
 
         if not plan:
-            logger.info(
-                "Индексация %s: план пуст (всё уже проиндексировано или нечего индексировать) — "
-                "фоновая задача не запускается", task.task_id,
+            logger.warning(
+                "Индексация %s: план пуст — фоновая задача НЕ запускается, в БД ничего не будет. "
+                "Причины: (а) все концепты уже проиндексированы (уже проиндексировано=%d), "
+                "(б) source_paths отфильтровали всё (см. WARNING выше), (в) limit_documents=0, "
+                "(г) файлы не читаются/не содержат объектов id+title (файлы с ошибками=%d).",
+                task.task_id, summary["already_indexed"], len(summary["files_with_errors"]),
             )
             task.status = TaskStatus.SUCCEEDED
             task.started_at = datetime.now(timezone.utc)
