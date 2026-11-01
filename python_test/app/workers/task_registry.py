@@ -76,10 +76,17 @@ class TaskRegistry:
                 TaskStatus.PENDING,
                 TaskStatus.RUNNING,
             ):
+                logger.warning(
+                    "Очередь задач: создание отклонено — уже выполняется задача %s", self._running_id
+                )
                 raise TaskAlreadyRunningError("Индексация уже выполняется — дождитесь завершения")
             task = IndexTask(task_id=uuid4(), options=options, requested_by=requested_by)
             self._tasks[task.task_id] = task
             self._running_id = task.task_id
+            logger.info(
+                "Очередь задач: создана новая задача %s (в реестре %d, active=%s)",
+                task.task_id, len(self._tasks), self._running_id,
+            )
             return task
 
     def get(self, task_id: UUID) -> IndexTask | None:
@@ -88,6 +95,7 @@ class TaskRegistry:
     def release(self, task_id: UUID) -> None:
         if self._running_id == task_id:
             self._running_id = None
+            logger.info("Очередь задач: слот освобождён задачей %s (теперь можно запускать новую)", task_id)
 
     def list_tasks(self, limit: int = 20) -> list[IndexTask]:
         items = sorted(self._tasks.values(), key=lambda t: t.task_id.hex, reverse=True)

@@ -47,6 +47,9 @@ class IndexingService:
     # ------------------------------- планирование ---------------------------
     async def build_plan(self, options: dict[str, Any]) -> tuple[list[Concept], dict[str, Any]]:
         concepts, sources = await self._reader.flatten_concepts()
+        logger.info(
+            "План индексации: концептов собрано=%d из файлов=%d", len(concepts), len(sources),
+        )
 
         wanted_paths = set(options.get("source_paths") or [])
         if wanted_paths:
@@ -61,6 +64,10 @@ class IndexingService:
         existing = await self._repository.existing_hashes()
         embedded = await self._repository.embedded_document_ids()
         force = bool(options.get("force_reindex"))
+        logger.info(
+            "План индексации: в kb_documents уже есть hash'ей=%d, эмбеддингов (model=%s)=%d, force_reindex=%s",
+            len(existing), self._settings.embedding_model, len(embedded), force,
+        )
 
         to_embed: list[Concept] = []
         already_ok = 0
@@ -74,6 +81,7 @@ class IndexingService:
         limit = options.get("limit_documents")
         if limit:
             to_embed = to_embed[: int(limit)]
+            logger.info("План индексации: применён limit_documents=%d", limit)
 
         summary = {
             "files_found": len(sources),
@@ -87,16 +95,42 @@ class IndexingService:
 
     # --------------------------------- запуск --------------------------------
     async def start(self, options: dict[str, Any], requested_by: str) -> tuple[IndexTask, dict[str, Any]]:
+        logger.info("Индексация: запрошен запуск (requested_by=%s, options=%s)", requested_by, options)
         try:
             task = await self._registry.create(options, requested_by)
         except TaskAlreadyRunningError as exc:
+            logger.warning("Индексация отклонена: %s", exc)
             raise TaskConflictError(str(exc)) from exc
+        logger.info("Индексация: создана фоновая задача %s, строится план…", task.task_id)
         plan, summary = await self.build_plan(options)
         task.total = len(plan)
         task.options = {**options, "plan_summary": summary}
+        logger.info(
+            "Индексация %s: план готов — файлов=%d, концептов=%d, уникальных=%d, "
+            "уже проиндексировано=%d, к обработке=%d",
+            task.task_id, summary["files_found"], summary["concepts_total"],
+            summary["unique_concepts"], summary["already_indexed"], summary["to_embed"],
+        )
+        if summary["files_with_errors"]:
+            logger.warning(
+                "Индексация %s: файлы с ошибками (пропущены): %s",
+                task.task_id, ", ".join(summary["files_with_errors"]),
+            )
 
         if options.get("dry_run"):
+            logger.info("Индексация %s: dry_run=True — в БД/Ollama ничего не отправляется", task.task_id)
             task.status = TaskStatus.SUCCEEDED
+            task.finished_at = datetime.now(timezone.utc)
+            self._registry.release(task.task_id)
+            return task, summary
+
+        if not plan:
+            logger.info(
+                "Индексация %s: план пуст (всё уже проиндексировано или нечего индексировать) — "
+                "фоновая задача не запускается", task.task_id,
+            )
+            task.status = TaskStatus.SUCCEEDED
+            task.started_at = datetime.now(timezone.utc)
             task.finished_at = datetime.now(timezone.utc)
             self._registry.release(task.task_id)
             return task, summary
@@ -105,54 +139,98 @@ class IndexingService:
             self._run(task, plan), name=f"index-task-{task.task_id}"
         )
         task._asyncio_task.add_done_callback(lambda _t, tid=task.task_id: self._registry.release(tid))
+        logger.info("Индексация %s: фоновая задача поставлена в очередь (worker запущен)", task.task_id)
         return task, summary
 
     # ------------------------------ исполнитель ------------------------------
     async def _run(self, task: IndexTask, plan: list[Concept]) -> None:
         task.status = TaskStatus.RUNNING
         task.started_at = datetime.now(timezone.utc)
-        logger.info("Задача %s: старт индексации, концептов к обработке: %d", task.task_id, len(plan))
+        logger.info(
+            "[ЗАДАЧА %s] старт фоновой индексации: концептов к обработке=%d", task.task_id, len(plan),
+        )
+        consecutive_failures = 0
         try:
             # «по очереди»: последовательно, но с внутренним лимитом через semaphore клиента
-            for concept in plan:
+            for idx, concept in enumerate(plan, start=1):
                 if task.status is TaskStatus.CANCELLED:
                     break
-                await self._process_one(task, concept)
+                ok = await self._process_one(task, concept, idx=idx)
                 task.processed += 1
-                if task.processed % 25 == 0:
+                consecutive_failures = 0 if ok else consecutive_failures + 1
+                if task.processed % 25 == 0 or not ok:
                     logger.info(
-                        "Задача %s: прогресс %d/%d (встроено %d, ошибок %d)",
-                        task.task_id, task.processed, task.total, task.stored_documents, task.failed,
+                        "[ЗАДАЧА %s] прогресс %d/%d — новых документов: %d, дублей пропущено: %d, "
+                        "ошибок: %d",
+                        task.task_id, task.processed, task.total,
+                        task.stored_documents, task.skipped_duplicates, task.failed,
+                    )
+                # защитный стоп: если Ollama/БД систематически недоступны,
+                # не «сжигаем» часы на заведомо падающих попытках
+                if consecutive_failures >= 10:
+                    raise RuntimeError(
+                        f"Прервано: {consecutive_failures} подряд неуспешных концептов "
+                        f"(последняя ошибка см. в списке errors задачи). "
+                        "Проверьте доступность Ollama и PostgreSQL."
                     )
             task.status = TaskStatus.FAILED if task.failed and task.stored_documents == 0 else TaskStatus.SUCCEEDED
         except asyncio.CancelledError:
             task.status = TaskStatus.CANCELLED
-            logger.warning("Задача %s отменена", task.task_id)
+            logger.warning("[ЗАДАЧА %s] отменена", task.task_id)
             raise
         except Exception as exc:  # noqa: BLE001 - фиксируем, но не роняем сервис
             task.status = TaskStatus.FAILED
             task.add_error("pipeline", exc)
-            logger.exception("Задача %s завершилась с ошибкой", task.task_id)
+            logger.exception("[ЗАДАЧА %s] завершилась с ошибкой: %s", task.task_id, exc)
         finally:
             task.finished_at = datetime.now(timezone.utc)
             logger.info(
-                "Задача %s: финиш status=%s stored=%d skipped=%d failed=%d",
-                task.task_id, task.status.value, task.stored_documents, task.skipped_duplicates, task.failed,
+                "[ЗАДАЧА %s] финиш: status=%s обработано=%d/%d новых=%d дублей=%d ошибок=%d; "
+                "проверка БД: GET /stats",
+                task.task_id, task.status.value, task.processed, task.total,
+                task.stored_documents, task.skipped_duplicates, task.failed,
             )
+            if task.errors:
+                logger.error(
+                    "[ЗАДАЧА %s] первые ошибки: %s",
+                    task.task_id,
+                    "; ".join(f"{e['where']}: {e['error']}" for e in task.errors[:3]),
+                )
 
-    async def _process_one(self, task: IndexTask, concept: Concept) -> None:
+    async def _process_one(self, task: IndexTask, concept: Concept, *, idx: int) -> bool:
+        logger.info(
+            "[%d/%d] концепт '%s' (%s, hash=%s, текст %d симв.) — вызов Ollama /api/embeddings…",
+            idx, task.total, concept.concept_id, concept.source_path, concept.short_hash,
+            len(concept.text),
+        )
         try:
             vector = await self._embedder.embed(concept.text)
             task.embedded += 1
+            logger.info("[%d/%d] Ollama ответила: эмбеддинг размерности %d получен", idx, task.total, len(vector))
         except Exception as exc:  # noqa: BLE001
             task.add_error(f"embedding:{concept.concept_id}", exc)
-            return
+            logger.error(
+                "[%d/%d] ОШИБКА эмбеддинга '%s': %s: %s",
+                idx, task.total, concept.concept_id, exc.__class__.__name__, exc,
+            )
+            return False
         try:
+            logger.info("[%d/%d] запись в БД (kb_documents + kb_embeddings)…", idx, task.total)
             document_id, created_new = await self._repository.save_with_embedding(concept, vector)
             if created_new:
                 task.stored_documents += 1
+                logger.info("[%d/%d] ДОБАВЛЕН документ document_id=%s", idx, task.total, document_id)
             else:
                 task.skipped_duplicates += 1
-            logger.debug("Индексировано %s (%s) -> %s", concept.concept_id, concept.short_hash, document_id)
+                logger.info(
+                    "[%d/%d] документ с таким content_hash уже был — обновлён существующий document_id=%s",
+                    idx, task.total, document_id,
+                )
+            return True
         except Exception as exc:  # noqa: BLE001
             task.add_error(f"store:{concept.concept_id}", exc)
+            logger.error(
+                "[%d/%d] ОШИБКА записи в БД '%s': %s: %s",
+                idx, task.total, concept.concept_id, exc.__class__.__name__, exc,
+            )
+            return False
