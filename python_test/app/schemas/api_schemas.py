@@ -27,19 +27,24 @@ class HealthResponse(BaseModel):
 
 
 class TokenRequest(BaseModel):
-    """Запрос на выдачу короткоживущего JWT (доступен только держателю admin-ключа)."""
+    """Запрос на выдачу JWT (доступен только держателю admin-ключа)."""
 
     model_config = ConfigDict(extra="forbid")
 
     subject: str = Field(min_length=1, max_length=128, description="Имя пользователя/сервиса (claim sub)")
     scopes: list[Literal["rag:read", "rag:index", "rag:admin"]] = Field(default_factory=lambda: ["rag:read"])
-    ttl_seconds: int | None = Field(default=None, ge=60, le=86_400)
+    ttl_seconds: int | None = Field(
+        default=None,
+        ge=0,
+        le=86_400,
+        description="Время жизни токена в секундах; 0 или null — бессрочный токен (без claim exp)",
+    )
 
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: Literal["bearer"] = "bearer"
-    expires_in: int
+    expires_in: int | None = Field(default=None, description="Секунды до истечения; null — токен бессрочный")
     scopes: list[str]
 
 

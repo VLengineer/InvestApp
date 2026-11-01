@@ -52,7 +52,12 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_issuer: str | None = Field(default=None, description="Ожидаемый claim iss (env: JWT_ISSUER)")
     jwt_audience: str | None = Field(default=None, description="Ожидаемый claim aud (env: JWT_AUDIENCE)")
-    access_token_ttl_s: int = Field(default=3600, ge=60, le=86_400)
+    # Требовать ли наличие exp в входящем токене. false (по умолчанию) — допускаются
+    # бессрочные токены без exp; если exp есть, он всё равно проверяется.
+    jwt_require_exp: bool = Field(default=False, description="Обязателен ли claim exp (env: JWT_REQUIRE_EXP)")
+    jwt_leeway_s: int = Field(default=60, ge=0, le=3600, description="Допуск при проверке exp/iat, сек (env: JWT_LEEWAY_S)")
+    # 0 (или пусто) = выдавать токены без exp (бессрочные).
+    access_token_ttl_s: int = Field(default=0, ge=0, le=86_400, description="TTL выдаваемого JWT, сек; 0 — бессрочный (env: ACCESS_TOKEN_TTL_S)")
     api_keys: list[str] = Field(default_factory=list, description="Ключи X-API-Key для машинных вызовов (env: API_KEYS)")
     admin_api_key: str | None = Field(default=None, description="Ключ для POST /auth/token (env: ADMIN_API_KEY)")
 

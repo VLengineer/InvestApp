@@ -67,8 +67,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         description=(
             "Индексация «общих» JSON из knowledge_base через Ollama (nomic-embed-text) "
             "с сохранением документов и векторов в PostgreSQL+pgvector. Доступ по JWT.\n\n"
+            "**Токены бессрочные**: claim `exp` не обязателен (env JWT_REQUIRE_EXP=false). "
+            "Токен можно получить через `POST /auth/token` (admin-ключ в X-API-Key, "
+            "`ttl_seconds`: 0/null — без срока действия) либо сгенерировать вне сервиса "
+            "скриптом `get_token.py` — тоже без `exp`.\n\n"
             "**Как пользоваться Swagger:** нажмите `Authorize` и введите токен "
-            "(сначала получите его через `POST /auth/token` с admin-ключом в X-API-Key) "
             "или используйте машинный ключ в поле API_KEY_BEARER (вставляется как X-API-Key)."
         ),
         docs_url=None if settings.is_production else "/docs",
@@ -132,7 +135,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "type": "http",
                 "scheme": "bearer",
                 "bearerFormat": "JWT",
-                "description": "JWT из POST /auth/token (Authorization: Bearer <token>)",
+                "description": "JWT из POST /auth/token или get_token.py; бессрочный (без exp) — Authorization: Bearer <token>",
             },
             "ApiKeyHeader": {
                 "type": "apiKey",
