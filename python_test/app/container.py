@@ -16,6 +16,8 @@ from app.repositories.document_repository import DocumentRepository
 from app.services.indexing_service import IndexingService
 from app.services.kb_reader import KnowledgeBaseReader
 from app.workers.task_registry import TaskRegistry
+from news_analyzer.repository import NewsRepository
+from news_analyzer.service import NewsAnalyzerService
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,9 @@ class Container:
     repository: DocumentRepository
     registry: TaskRegistry
     indexing: IndexingService
+    # --- микросервис news_analyzer (код: python_test/news_analyzer/) ---
+    news_repository: NewsRepository
+    news_analyzer: NewsAnalyzerService
     _closed: bool = field(default=False, repr=False)
 
     @classmethod
@@ -64,11 +69,18 @@ class Container:
         registry = TaskRegistry()
         repository = _LazyRepository(database, model=settings.embedding_model)
         indexing = IndexingService(settings, reader, embedder, repository, registry)
-        return cls(settings, database, embedder, reader, repository, registry, indexing)
+        # Микросервис анализа новостей: репозиторий берёт живой пул у Database
+        news_repository = NewsRepository(database)
+        news_analyzer = NewsAnalyzerService(news_repository)
+        return cls(
+            settings, database, embedder, reader, repository, registry, indexing,
+            news_repository, news_analyzer,
+        )
 
     async def startup(self) -> None:
         await self.database.connect()
         await self.database.ensure_schema()
+        await self.news_repository.ensure_schema()
         logger.info("Схема БД проверена; эмбеддинг-модель: %s", self.settings.embedding_model)
         # Явно проверяем Ollama при старте и пишем результат в лог контейнера —
         # чтобы «ollama не вызывается / модель не загружена» было видно сразу,

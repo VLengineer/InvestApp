@@ -11,6 +11,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+# Каждый микросервис — своя папка внутри python_test (см. MICROSERVICES.md);
+# все такие папки копируются в образ одним блоком ниже.
+COPY news_analyzer ./news_analyzer
 COPY knowledge_base ./knowledge_base
 
 EXPOSE 8100
