@@ -33,6 +33,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         request_id = str(uuid.uuid4())
         request.state.request_id = request_id
         started = time.perf_counter()
+        
+        # 1. ИСКЛЮЧЕНИЕ: Не применяем строгий CSP к документации Swagger/ReDoc
+        # Им необходимы внешние CDN, inline-скрипты и доступ к openapi.json
+        if request.url.path in ["/docs", "/redoc", "/openapi.json"]:
+            response = await call_next(request)
+            response.headers["X-Request-Id"] = request_id
+            # Остальные строгие заголовки не добавляем, чтобы не ломать UI
+            return response
+
         try:
             response = await call_next(request)
         except Exception:  # noqa: BLE001 - логируем с полным стеком, наружу — generic 500
@@ -42,6 +51,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 content={"code": "internal_error", "message": "Внутренняя ошибка сервера",
                          "details": {"request_id": request_id}},
             )
+        
+        # 2. Строгие заголовки безопасности только для основных API-маршрутов
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -49,14 +60,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         response.headers["Cache-Control"] = "no-store"
         response.headers["X-Request-Id"] = request_id
+        
         logger.info(
             "%s %s -> %s (%.1f ms)",
             request.method, mask(str(request.url.path)), response.status_code,
             (time.perf_counter() - started) * 1000,
         )
         return response
-
-
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
