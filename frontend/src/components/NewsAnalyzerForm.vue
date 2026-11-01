@@ -54,8 +54,10 @@ async function analyze() {
     result.value = data
   } catch (e) {
     error.value = `Не удалось вызвать вебхук ${props.webhookUrl}: ${e.message}. ` +
-      'Проверьте, что контейнеры n8n и frontend в одной сети app_net ' +
-      'и что webhook news_analizer активен в n8n.'
+      'Если frontend открыт в браузере по localhost/IP хоста, а URL указывает на http://n8n:5678 — ' +
+      'браузер не знает это docker-имя: вызов должен идти через прокси /n8n-api (vite.config.js) ' +
+      'или на http://localhost:5678. Для /webhook-test сначала нажмите «Execute workflow» в n8n, ' +
+      'для /webhook включите переключатель Active.'
   } finally {
     loading.value = false
   }
