@@ -24,12 +24,20 @@ class _LazyRepository(DocumentRepository):
     """Proxy: репозиторий создаётся до подключения пула и берёт pool у Database в момент вызова."""
 
     def __init__(self, database: Database, *, model: str) -> None:
-        super().__init__(pool=None, model=model)  # type: ignore[arg-type]
-        self._database = database
+        # super().__init__ присваивает self._pool = pool; setter (ниже)
+        # перехватывает это назначение и сохраняет ссылку на Database,
+        # а getter возвращает живой пул в момент вызова.
+        super().__init__(pool=database, model=model)  # type: ignore[arg-type]
 
     @property  # type: ignore[override]
     def _pool(self):  # noqa: ANN201 - прокси к живому пулу
-        return self._database.pool
+        return self._stored_pool.pool
+
+    @_pool.setter
+    def _pool(self, value) -> None:  # noqa: ANN001
+        # без setter'а присваивание в базовом __init__ вызвало бы
+        # AttributeError: property '_pool' ... has no setter
+        self._stored_pool = value
 
 
 @dataclass(slots=True)
