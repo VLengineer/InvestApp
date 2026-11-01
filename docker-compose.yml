@@ -95,6 +95,23 @@ services:
     networks:
       - app_net
 
+  # Vue-фронтенд «Анализатор новостей»: форма отправляет POST на
+  # http://n8n:5678/webhook/news_analizer (совпадение имён — не опечатка).
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_BIND_IP:-0.0.0.0}:${FRONTEND_PORT:-5173}:5173"
+    environment:
+      VITE_N8N_WEBHOOK_URL: "${N8N_WEBHOOK_URL:-http://n8n:5678/}webhook/news_analizer"
+    depends_on:
+      - n8n
+    networks:
+      - app_net
+
 volumes:
   ollama_data:
   n8n_data:
