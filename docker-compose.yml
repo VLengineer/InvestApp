@@ -113,6 +113,9 @@ services:
       VITE_N8N_BASE_URL: "${N8N_CONTAINER_URL:-http://n8n:5678/}"
       # live → /webhook/…, test → /webhook-test/…
       VITE_N8N_WEBHOOK_MODE: "${N8N_WEBHOOK_MODE:-test}"
+      # Токен для запросов к n8n (Vue шлёт его как Authorization: Bearer …).
+      # Пусто — заголовок не отправляется.
+      VITE_N8N_AUTH_TOKEN: "${N8N_AUTH_TOKEN:-}"
       # куда dev-сервер Vite проксирует /n8n-api из браузера (внутри сети — имя сервиса)
       N8N_PROXY_TARGET: "${N8N_CONTAINER_URL:-http://n8n:5678/}"
     depends_on:

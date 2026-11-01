@@ -3,6 +3,9 @@ import { reactive, ref } from 'vue'
 
 const props = defineProps({
   webhookUrl: { type: String, required: true },
+  // Токен из окружения (VITE_N8N_AUTH_TOKEN ← N8N_AUTH_TOKEN в корневом .env).
+  // Если задан — добавляется заголовок Authorization: Bearer <token>.
+  authToken: { type: String, default: '' },
 })
 
 // Поля формы — ровно те, что уходят JSON-телом на вебхук n8n
@@ -35,9 +38,13 @@ async function analyze() {
 
   loading.value = true
   try {
+    const headers = { 'Content-Type': 'application/json' }
+    if (props.authToken) {
+      headers['Authorization'] = `Bearer ${props.authToken}`
+    }
     const response = await fetch(props.webhookUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(payload),
     })
     const text = await response.text()

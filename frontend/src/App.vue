@@ -44,6 +44,11 @@ function resolveBaseUrl(base) {
   return base
 }
 
+// Токен для запросов к n8n (Authorization: Bearer …). Приходит из корневого
+// .env через docker-compose: N8N_AUTH_TOKEN → VITE_N8N_AUTH_TOKEN.
+// Пустой значение — заголовок авторизации не отправляется вовсе.
+const authToken = import.meta.env.VITE_N8N_AUTH_TOKEN || ''
+
 const effectiveBase = resolveBaseUrl(n8nBase)
 
 // Путь вебхука в n8n (имя «news_analizer» — такое же, как в workflow, это не опечатка)
@@ -102,7 +107,7 @@ function setMode(m) {
       </p>
     </header>
 
-    <NewsAnalyzerForm :webhook-url="webhookUrl" />
+    <NewsAnalyzerForm :webhook-url="webhookUrl" :auth-token="authToken" />
   </main>
 </template>
 
