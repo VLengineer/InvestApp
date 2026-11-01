@@ -1,3 +1,5 @@
+# Все секреты и параметры окружения вынесены в корневой .env файл (см. .env.example).
+# Значения вида ${VAR:-default} берутся из .env, default используется только как безопасный fallback.
 services:
   ollama:
     image: ollama/ollama:latest
@@ -6,7 +8,7 @@ services:
     restart: unless-stopped
     runtime: nvidia
     environment:
-      OLLAMA_HOST: "0.0.0.0:11435" # Возвращен стандартный порт, т.к. нет Nginx
+      OLLAMA_HOST: "0.0.0.0:${OLLAMA_PORT:-11435}" # Порт Ollama API (без Nginx — наружу не публикуется)
       NVIDIA_VISIBLE_DEVICES: "all"
       NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
     volumes:
@@ -31,13 +33,21 @@ services:
     container_name: postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: adminpassword
-      POSTGRES_DB: vectordb
+      # Учётные данные только из .env (см. .env.example) — без дефолтов, чтобы не коммитить пароли
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Инициализация БД для RAG-микросервиса: расширение pgvector + таблицы kb_documents/kb_embeddings + индексы
+      - ./init_db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - app_net
 
@@ -46,23 +56,23 @@ services:
     container_name: n8n
     restart: unless-stopped
     ports:
-      - "5678:5678" # Доступен извне
+      - "${N8N_BIND_IP:-0.0.0.0}:${N8N_PORT:-5678}:5678" # Доступен извне
     environment:
       N8N_HOST: "0.0.0.0"
       N8N_PORT: "5678"
       N8N_PROTOCOL: "http"
       N8N_SECURE_COOKIE: "false"
-      N8N_EDITOR_BASE_URL: "http://localhost:5678/"
-      WEBHOOK_URL: "http://192.168.0.5:5678/"
-      GENERIC_TIMEZONE: "Europe/Moscow"
-      TZ: "Europe/Moscow"
+      N8N_EDITOR_BASE_URL: "${N8N_EDITOR_BASE_URL:-http://localhost:5678/}"
+      WEBHOOK_URL: "${N8N_WEBHOOK_URL:-http://localhost:5678/}"
+      GENERIC_TIMEZONE: "${TZ:-Europe/Moscow}"
+      TZ: "${TZ:-Europe/Moscow}"
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:
       ollama:
         condition: service_healthy
       postgres:
-        condition: service_started
+        condition: service_healthy
     networks:
       - app_net
 
@@ -74,39 +84,44 @@ services:
     volumes:
       - ./python_app:/app # Локальная папка с FastAPI кодом (правки + --reload без пересборки)
     ports:
-      - "0.0.0.0:8000:8000" # Swagger: http://192.168.0.5:8000/docs (наружи, как и n8n:5678)
+      - "${APP_BIND_IP:-0.0.0.0}:${APP_PORT:-8000}:8000" # Swagger: ${HOST_LAN_IP}:${APP_PORT}/docs (наружу, как и n8n)
     env_file:
       - ./python_app/.env # JWT_SECRET, OCR_API_URL и т.д. (см. README микросервиса)
     environment:
       PYTHONUNBUFFERED: "1"
-      WEBHOOK_URL: "http://192.168.0.5:8000/"
+      WEBHOOK_URL: "${APP_WEBHOOK_URL:-http://localhost:8000/}"
     command: sh -c "pip install --no-cache-dir -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     depends_on:
-      - postgres
-      - ollama
-      - n8n
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      n8n:
+        condition: service_started
     networks:
       - app_net
 
-  python-test: #Контейнер для теста скриптов
-    image: python:3.12 
-    container_name: python_test
+  rag-indexer: # Микросервис индексации базы знаний: JSON -> Ollama embeddings -> pgvector (python_test)
+    build:
+      context: ./python_test
+      dockerfile: Dockerfile
+    container_name: rag_indexer
     restart: unless-stopped
-    working_dir: /app
-    volumes:
-      - ./python_test:/app
     ports:
-      - "0.0.0.0:8100:8100"
+      - "${RAG_BIND_IP:-127.0.0.1}:${RAG_PORT:-8100}:8100"
     env_file:
-      - ./python_test/.env
+      - ./python_test/.env # DATABASE_URL, JWT_SECRET, OLLAMA_* (см. python_test/.env.example)
     environment:
       PYTHONUNBUFFERED: "1"
-      WEBHOOK_URL: "http://192.168.0.5:8100/"
-    command: sh -c "pip install --no-cache-dir -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload"
+    volumes:
+      # read-only: сервис только читает файлы базы знаний, писать в них не должен
+      - ./knowledge_base:/data/knowledge_base:ro
+    command: sh -c "pip install --no-cache-dir -r requirements.txt && uvicorn app.main:app --host 0.0.0.0 --port 8100"
     depends_on:
-      - postgres
-      - ollama
-      - n8n
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
     networks:
       - app_net
 
