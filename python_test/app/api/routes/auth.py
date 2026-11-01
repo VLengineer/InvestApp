@@ -1,8 +1,11 @@
 """Выдача JWT-токенов (эндпоинт доступен только держателю admin-ключа).
 
 Идея: секрет JWT никогда не покидает сервис. Внешние клиенты (n8n, веб-приложения)
-получают короткоживущий токен по X-API-Key и дальше ходят с
-``Authorization: Bearer <token>``.
+получают токен по X-API-Key и дальше ходят с ``Authorization: Bearer <token>``.
+
+По умолчанию выдаются БЕССРОЧНЫЕ токены (без claim ``exp``): TTL берётся из env
+``ACCESS_TOKEN_TTL_S`` (0 = бессрочный), либо явно указывается в запросе
+(``"ttl_seconds": 3600`` — токен на час, ``0``/``null`` — бессрочный).
 """
 
 from __future__ import annotations
@@ -42,15 +45,16 @@ router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(require_
 @router.post(
     "/token",
     response_model=TokenResponse,
-    summary="Выдать JWT по admin-ключу",
+    summary="Выдать JWT по admin-ключу (по умолчанию — бессрочный)",
     description=(
         "Тело: `{ \"subject\": \"n8n\", \"scopes\": [\"rag:read\", \"rag:index\"] }`.\n\n"
+        "`ttl_seconds`: `null` или `0` — токен без срока действия (по умолчанию); `3600` — на 1 час.\n\n"
         "Доступен только запросам с заголовком `X-API-Key: <ADMIN_API_KEY>`.\n"
         "Разрешённые scopes: " + ", ".join(s.value for s in ALL_SCOPES) + "."
     ),
 )
 async def create_token(body: TokenRequest) -> TokenResponse:
     settings = get_settings()
-    ttl = body.ttl_seconds or settings.access_token_ttl_s
-    token = issue_token(subject=body.subject, scopes=list(body.scopes), settings=settings, ttl_seconds=ttl)
-    return TokenResponse(access_token=token, expires_in=ttl, scopes=list(body.scopes))
+    ttl = body.ttl_seconds if body.ttl_seconds is not None else settings.access_token_ttl_s
+    token = issue_token(subject=body.subject, scopes=list(body.scopes), settings=settings, ttl_seconds=ttl or None)
+    return TokenResponse(access_token=token, expires_in=ttl or None, scopes=list(body.scopes))

@@ -2,7 +2,9 @@
 
 Требования к токену:
   * подпись HMAC-SHA256 секретом из env ``JWT_SECRET_KEY``;
-  * обязательные claims: ``exp``, ``iat``, ``sub``, ``iss``, ``aud``;
+  * обязательные claims: ``iat``, ``sub`` (+ ``iss``/``aud``, если настроены);
+  * срок действия НЕ обязателен: токены без ``exp`` («бессрочные») валидны,
+    а ``exp`` при наличии всё равно проверяется (env ``JWT_REQUIRE_EXP=false``);
   * ``scope``/``role`` должен содержать нужный scopes (admin для записи/индексации).
 
 Секрет никогда не читается из запроса и не попадает в логи.
@@ -47,7 +49,12 @@ class Principal:
 
 
 def decode_token(token: str, settings: Settings) -> dict:
-    """Проверяет подпись, алгоритм, срок действия и iss/aud токена."""
+    """Проверяет подпись, алгоритм и iss/aud токена.
+
+    ``exp`` обязателен только при ``JWT_REQUIRE_EXP=true``; по умолчанию
+    бессрочные токены (без ``exp``) принимаются. Если ``exp`` присутствует —
+    он валидируется как обычно (просроченный токен отклоняется).
+    """
     try:
         return jwt.decode(
             token,
@@ -56,10 +63,10 @@ def decode_token(token: str, settings: Settings) -> dict:
             issuer=settings.jwt_issuer or None,
             audience=settings.jwt_audience or None,
             options={
-                "require": ["exp", "iat", "sub"],
+                "require": ["iat", "sub"] + (["exp"] if settings.jwt_require_exp else []),
                 "verify_exp": True,
                 "verify_iat": True,
-                "leeway": 0,
+                "leeway": settings.jwt_leeway_s,
             },
         )
     except PyJWTError as exc:  # единое сообщение — не раскрываем причину атакующему
@@ -142,8 +149,9 @@ def issue_token(
     subject: str,
     scopes: list[str],
     settings: Settings,
-    ttl_seconds: int = 3600,
+    ttl_seconds: int | None = None,
 ) -> str:
+    """Выпускает JWT. ``ttl_seconds=None`` (или ``0``) — токен БЕЗ ``exp``, т.е. бессрочный."""
     now = datetime.now(timezone.utc)
     payload = {
         "sub": subject,
@@ -151,6 +159,7 @@ def issue_token(
         "iss": settings.jwt_issuer or settings.app_name,
         "aud": settings.jwt_audience or settings.app_name,
         "iat": now,
-        "exp": now.timestamp() + ttl_seconds,
     }
+    if ttl_seconds:
+        payload["exp"] = now.timestamp() + ttl_seconds
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
