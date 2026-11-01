@@ -1,18 +1,21 @@
 """Безопасность: проверка JWT (HS256) и ролевая модель.
 
-Требования к токену:
+Упрощённая схема доступа — ОДИН токен на всё:
   * подпись HMAC-SHA256 секретом из env ``JWT_SECRET_KEY``;
-  * обязательные claims: ``iat``, ``sub`` (+ ``iss``/``aud``, если настроены);
+  * обязательные claims: ``iat``, ``sub``;
   * срок действия НЕ обязателен: токены без ``exp`` («бессрочные») валидны,
     а ``exp`` при наличии всё равно проверяется (env ``JWT_REQUIRE_EXP=false``);
-  * ``scope``/``role`` должен содержать нужный scopes (admin для записи/индексации).
+  * ``iss``/``aud`` проверяются только если заданы соответствующие env-переменные;
+  * если в токене нет ``scope``/``role`` — считаются ВСЕ права (токен универсальный).
+
+Никаких отдельных admin-ключей и X-API-Key больше нет: все каналы (Swagger, n8n,
+скрипты) используют один и тот же JWT в заголовке ``Authorization: Bearer <token>``.
 
 Секрет никогда не читается из запроса и не попадает в логи.
 """
 
 from __future__ import annotations
 
-import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -49,19 +52,44 @@ class Principal:
 
 
 def decode_token(token: str, settings: Settings) -> dict:
-    """Проверяет подпись, алгоритм и iss/aud токена.
+    """Проверяет подпись, алгоритм и (если настроено) iss/aud токена.
 
     ``exp`` обязателен только при ``JWT_REQUIRE_EXP=true``; по умолчанию
     бессрочные токены (без ``exp``) принимаются. Если ``exp`` присутствует —
     он валидируется как обычно (просроченный токен отклоняется).
+
+    Если в токене есть claims ``iss``/``aud``, но сервер их не настраивал
+    (JWT_ISSUER/JWT_AUDIENCE пустые) — проверяем, что значение совпадает с
+    ``app_name``: это допускает токены, выпущенные этим сервисом/скриптом,
+    и при этом не даёт принять чужой токен с другим iss/aud.
     """
+    expected_iss = settings.jwt_issuer or None
+    expected_aud = settings.jwt_audience or None
     try:
+        header_claims = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=ALGORITHM_WHITELIST,
+            options={
+                "verify_signature": True,
+                "verify_exp": False,
+                "verify_iat": False,
+                "verify_iss": False,
+                "verify_aud": False,
+                "require": ["iat", "sub"] + (["exp"] if settings.jwt_require_exp else []),
+                "leeway": settings.jwt_leeway_s,
+            },
+        )
+        if expected_iss is None and "iss" in header_claims:
+            expected_iss = settings.app_name
+        if expected_aud is None and "aud" in header_claims:
+            expected_aud = settings.app_name
         return jwt.decode(
             token,
             settings.jwt_secret_key,
             algorithms=ALGORITHM_WHITELIST,
-            issuer=settings.jwt_issuer or None,
-            audience=settings.jwt_audience or None,
+            issuer=expected_iss,
+            audience=expected_aud,
             options={
                 "require": ["iat", "sub"] + (["exp"] if settings.jwt_require_exp else []),
                 "verify_exp": True,
@@ -89,43 +117,37 @@ def _extract_scopes(payload: dict) -> frozenset[Scope]:
     if isinstance(role, str):
         raw.append(role)
     known = {s.value: s for s in ALL_SCOPES}
-    return frozenset(known[item] for item in raw if item in known)
+    scopes = frozenset(known[item] for item in raw if item in known)
+    # Упрощение: токен без scope/role = универсальный (все права).
+    return scopes if scopes else frozenset(ALL_SCOPES)
 
 
 async def get_principal(
     settings: Annotated[Settings, Depends(get_settings)],
     authorization: Annotated[str | None, Header(description="Bearer <JWT>")] = None,
-    x_api_key: Annotated[str | None, Header(description="Машинный доступ (n8n)")] = None,
 ) -> Principal:
-    """Два канала доступа: JWT (основной) и X-API-Key (для внутренних сервисов)."""
-    if authorization:
-        scheme, _, token = authorization.partition(" ")
-        if scheme.lower() != "bearer" or not token.strip():
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Ожидается заголовок 'Authorization: Bearer <token>'",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        payload = decode_token(token.strip(), settings)
-        return Principal(
-            subject=str(payload.get("sub")),
-            scopes=_extract_scopes(payload),
-            issuer=payload.get("iss"),
+    """Единственный канал доступа: JWT в заголовке Authorization."""
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=(
+                "Требуется заголовок 'Authorization: Bearer <token>'. "
+                "В Swagger: нажмите Authorize и вставьте токен (get_token.py)"
+            ),
+            headers={"WWW-Authenticate": "Bearer"},
         )
-
-    if x_api_key and settings.api_keys:
-        # constant-time сравнение со ВСЕМИ ключами — без раннего выхода
-        matched = False
-        for key in settings.api_keys:
-            if secrets.compare_digest(x_api_key, key):
-                matched = True
-        if matched:
-            return Principal(subject="api-key-client", scopes=frozenset({Scope.INDEX, Scope.READ}))
-
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Требуется авторизация (JWT или API-ключ)",
-        headers={"WWW-Authenticate": "Bearer"},
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Ожидается заголовок 'Authorization: Bearer <token>'",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    payload = decode_token(token.strip(), settings)
+    return Principal(
+        subject=str(payload.get("sub")),
+        scopes=_extract_scopes(payload),
+        issuer=payload.get("iss"),
     )
 
 
@@ -153,13 +175,15 @@ def issue_token(
 ) -> str:
     """Выпускает JWT. ``ttl_seconds=None`` (или ``0``) — токен БЕЗ ``exp``, т.е. бессрочный."""
     now = datetime.now(timezone.utc)
-    payload = {
+    payload: dict = {
         "sub": subject,
         "scope": " ".join(scopes),
-        "iss": settings.jwt_issuer or settings.app_name,
-        "aud": settings.jwt_audience or settings.app_name,
         "iat": now,
     }
+    if settings.jwt_issuer:
+        payload["iss"] = settings.jwt_issuer
+    if settings.jwt_audience:
+        payload["aud"] = settings.jwt_audience
     if ttl_seconds:
         payload["exp"] = now.timestamp() + ttl_seconds
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)

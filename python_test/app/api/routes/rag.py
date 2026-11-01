@@ -1,7 +1,8 @@
 """Основные эндпоинты RAG-сервиса: индексация, задачи, поиск, документы, статистика.
 
-Все эндпоинты требуют авторизацию (JWT через Authorization: Bearer или X-API-Key)
-и проверяют нужные scopes (rag:read / rag:index / rag:admin).
+Все эндпоинты требуют авторизацию единым JWT-токеном
+(``Authorization: Bearer <token>``) и проверяют нужные scopes
+(rag:read / rag:index / rag:admin). Токен без scope = все права.
 """
 
 from __future__ import annotations

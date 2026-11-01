@@ -1,12 +1,14 @@
 """Генератор БЕССРОЧных JWT-токенов (HS256) для RAG-индексатора.
 
-Токен не содержит claim ``exp`` — срок действия отсутствует, сервер его тоже
-не требует (JWT_REQUIRE_EXP=false в python_test/.env).
+Это единственный способ получить токен: админ-ключей и X-API-Key в сервисе
+больше нет. Токен не содержит claim ``exp`` — срок действия отсутствует,
+сервер его тоже не требует (по умолчанию). Один и тот же токен подходит
+для Swagger (кнопка Authorize), n8n и любых скриптов.
 
-Использование:
-    python get_token.py --secret "<JWT_SECRET_KEY>" --sub external-service
-    python get_token.py --secret "<JWT_SECRET_KEY>" --sub n8n --scope rag:read --scope rag:index
-    python get_token.py --secret "<JWT_SECRET_KEY>" --sub n8n --ttl 3600   # если нужен токен на час
+Использование (секрет = JWT_SECRET_KEY из python_test/.env):
+    python get_token.py --secret "<JWT_SECRET_KEY>"
+    python get_token.py --secret "<JWT_SECRET_KEY>" --sub n8n
+    python get_token.py --secret "<JWT_SECRET_KEY>" --ttl 3600   # если всё же нужен TTL
 
 Секрет взять из python_test/.env (JWT_SECRET_KEY) или сгенерировать: python secret.py
 """
@@ -30,6 +32,7 @@ def build_token(secret: str, subject: str, scopes: list[str], iss: str | None, a
         payload["aud"] = aud
     if scopes:
         payload["scope"] = " ".join(scopes)
+    # Без scope токен универсальный (все права) — по умолчанию scope не добавляются.
     if ttl:
         payload["exp"] = int(time.time()) + ttl
     return jwt.encode(payload, secret, algorithm="HS256")
@@ -44,12 +47,12 @@ def main() -> None:
         action="append",
         dest="scopes",
         metavar="SCOPE",
-        help="rag:read / rag:index / rag:admin (можно несколько раз)",
+        help="не обязательно; rag:read / rag:index / rag:admin. Без scope — все права",
     )
     # По умолчанию iss/aud НЕ добавляются: сервер проверяет их только если заданы
-    # JWT_ISSUER / JWT_AUDIENCE. Если у сервера они заданы — передайте --iss/--aud.
-    parser.add_argument("--iss", default=None, help="claim iss (совпадает с JWT_ISSUER сервера; по умолчанию без iss)")
-    parser.add_argument("--aud", default=None, help="claim aud (совпадает с JWT_AUDIENCE сервера; по умолчанию без aud)")
+    # JWT_ISSUER / JWT_AUDIENCE (по умолчанию они пустые — проверять нечего).
+    parser.add_argument("--iss", default=None, help="claim iss (только если у сервера задан JWT_ISSUER)")
+    parser.add_argument("--aud", default=None, help="claim aud (только если у сервера задан JWT_AUDIENCE)")
     parser.add_argument("--ttl", type=int, default=0, help="секунды до истечения; 0 — бессрочный (по умолчанию)")
     args = parser.parse_args()
 
