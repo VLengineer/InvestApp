@@ -51,11 +51,21 @@ class IndexingService:
             "План индексации: концептов собрано=%d из файлов=%d", len(concepts), len(sources),
         )
 
-        wanted_paths = set(options.get("source_paths") or [])
+        # нормализуем пути: срезаем «/app/knowledge_base/», ведущий «./» и «knowledge_base/»,
+        # сводим разделители к «/» — иначе Swagger-заглушка "string" или абсолютный путь
+        # из Dockerfile молча фильтруют ВСЁ и план становится пустым
+        def _norm(path: str) -> str:
+            p = str(path).strip().replace("\\", "/").lstrip("./")
+            for prefix in ("/app/knowledge_base/", "app/knowledge_base/", "knowledge_base/"):
+                if p.startswith(prefix):
+                    p = p[len(prefix):]
+            return p
+
+        wanted_paths = {_norm(p) for p in (options.get("source_paths") or []) if str(p).strip()}
         if wanted_paths:
             available = sorted({c.source_path for c in concepts})
             before = len(concepts)
-            concepts = [c for c in concepts if c.source_path in wanted_paths]
+            concepts = [c for c in concepts if _norm(c.source_path) in wanted_paths]
             logger.info(
                 "План индексации: фильтр source_paths=%s — концептов %d -> %d",
                 sorted(wanted_paths), before, len(concepts),
@@ -92,8 +102,12 @@ class IndexingService:
 
         limit = options.get("limit_documents")
         if limit:
+            before_limit = len(to_embed)
             to_embed = to_embed[: int(limit)]
-            logger.info("План индексации: применён limit_documents=%d", limit)
+            logger.info(
+                "План индексации: применён limit_documents=%d — концептов к обработке %d -> %d",
+                limit, before_limit, len(to_embed),
+            )
 
         summary = {
             "files_found": len(sources),

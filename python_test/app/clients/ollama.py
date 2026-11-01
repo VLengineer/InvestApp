@@ -83,17 +83,38 @@ class OllamaEmbeddingClient:
             await self._client.aclose()
 
     async def health(self) -> dict[str, str]:
+        url = f"{self._client.base_url}/api/tags"
+        started = time.perf_counter()
+        logger.info("Ollama >>> GET %s (healthcheck)…", url)
         try:
             resp = await self._client.get("/api/tags", timeout=5.0)
             resp.raise_for_status()
             models = [m.get("name", "") for m in resp.json().get("models", [])]
             wanted = self._settings.embedding_model
             present = any(name == wanted or name.startswith(f"{wanted}:") for name in models)
+            elapsed = time.perf_counter() - started
             if not present:
-                return {"status": "degraded", "detail": f"модель '{wanted}' не загружена в ollama"}
+                logger.error(
+                    "Ollama <<< (%.2fs, HTTP %d) ОТВЕТ: сервис жив, но модель '%s' НЕ загружена "
+                    "(доступны в ollama: %s). Выполните: docker exec -it ollama ollama pull \"%s\"",
+                    elapsed, resp.status_code, wanted, ", ".join(models) or "список пуст", wanted,
+                )
+                return {
+                    "status": "degraded",
+                    "detail": f"модель '{wanted}' не загружена в ollama; доступны: {', '.join(models) or 'нет'}",
+                }
+            logger.info(
+                "Ollama <<< (%.2fs, HTTP %d) ОТВЕТ: OK, модель '%s' загружена (всего моделей: %d)",
+                elapsed, resp.status_code, wanted, len(models),
+            )
             return {"status": "ok", "detail": f"model={wanted}"}
         except Exception as exc:  # noqa: BLE001
-            return {"status": "down", "detail": exc.__class__.__name__}
+            logger.error(
+                "Ollama <<< (%.2fs) ОШИБКА healthcheck %s к %s: %s — Ollama недоступна "
+                "(проверьте, что контейнер ollama запущен и OLLAMA_BASE_URL верный)",
+                time.perf_counter() - started, exc.__class__.__name__, url, exc,
+            )
+            return {"status": "down", "detail": f"{exc.__class__.__name__}: {exc}"}
 
     # ------------------------------- запросы ---------------------------------
     async def _embed_once(self, text: str) -> list[float]:
@@ -101,7 +122,10 @@ class OllamaEmbeddingClient:
         payload = {"model": self._settings.embedding_model, "prompt": text, "keep_alive": "5m"}
         url = f"{self._client.base_url}api/embeddings"
         started = time.perf_counter()
-        logger.info("Ollama >>> POST %s (model=%s, prompt %d симв.)", url, self._settings.embedding_model, len(text))
+        logger.info(
+            "Ollama >>> POST %s (model=%s, prompt %d симв., timeout=%.0fs): начало запроса…",
+            url, self._settings.embedding_model, len(text), self._settings.request_timeout_s,
+        )
         try:
             resp = await self._client.post("/api/embeddings", json=payload)
             resp.raise_for_status()
@@ -122,10 +146,10 @@ class OllamaEmbeddingClient:
         except httpx.HTTPError as exc:
             await self._breaker.record_failure()
             logger.error(
-                "Ollama <<< сетевая ошибка %s за %.2fs (%s)",
-                exc.__class__.__name__, time.perf_counter() - started, url,
+                "Ollama <<< сетевая ошибка %s за %.2fs (%s): %s — проверьте доступность контейнера ollama",
+                exc.__class__.__name__, time.perf_counter() - started, url, exc,
             )
-            raise EmbeddingError(f"Сетевая ошибка при обращении к Ollama: {exc.__class__.__name__}") from exc
+            raise EmbeddingError(f"Сетевая ошибка при обращении к Ollama: {exc.__class__.__name__}: {exc}") from exc
         else:
             elapsed = time.perf_counter() - started
             if not isinstance(vector, list) or not vector:

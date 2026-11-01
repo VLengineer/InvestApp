@@ -76,7 +76,7 @@ class Settings(BaseSettings):
     common_dir_names: list[str] = Field(default_factory=lambda: ["Общий json"])
 
     # --------------------------------- Ollama -------------------------------
-    ollama_base_url: str = "http://ollama:11435"
+    ollama_base_url: str = "http://ollama:11435/"
     embedding_model: str = "nomic-embed-text"
     embedding_dim: int = 768
     request_timeout_s: float = 120.0

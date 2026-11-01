@@ -70,6 +70,16 @@ class Container:
         await self.database.connect()
         await self.database.ensure_schema()
         logger.info("Схема БД проверена; эмбеддинг-модель: %s", self.settings.embedding_model)
+        # Явно проверяем Ollama при старте и пишем результат в лог контейнера —
+        # чтобы «ollama не вызывается / модель не загружена» было видно сразу,
+        # а не только после первого POST /index.
+        ollama = await self.embedder.health()
+        if ollama["status"] == "ok":
+            logger.info("Ollama: проверка при старте — OK (%s)", ollama["detail"])
+        elif ollama["status"] == "degraded":
+            logger.warning("Ollama: проверка при старте — %s", ollama["detail"])
+        else:
+            logger.error("Ollama: проверка при старте — НЕДОСТУПНА (%s)", ollama["detail"])
 
     async def shutdown(self) -> None:
         if self._closed:

@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any
 
 import asyncpg
@@ -56,9 +57,30 @@ class Database:
         self._settings = settings
         self._pool: asyncpg.Pool | None = None
 
+    @staticmethod
+    def _dsn_masked(dsn: str) -> str:
+        """Показываем хост/порт/БД без пароля (пароль секрет)."""
+        from urllib.parse import urlsplit, urlunsplit
+
+        try:
+            parts = urlsplit(dsn)
+            host = parts.hostname or "?"
+            netloc = f"***:***@{host}:{parts.port}" if parts.password else f"{host}:{parts.port}"
+            return urlunsplit((parts.scheme, netloc, parts.path, "", ""))
+        except Exception:  # noqa: BLE001
+            return "<dsn скрыт>"
+
     async def connect(self) -> None:
         if self._pool is not None:
             return
+        target = self._dsn_masked(self._settings.dsn)
+        logger.info(
+            "PostgreSQL >>> подключение: host=%s port=%s db=%s user=%s pool=%d..%d",
+            self._settings.postgres_host, self._settings.postgres_port,
+            self._settings.postgres_db, self._settings.postgres_user,
+            self._settings.db_pool_min_size, self._settings.db_pool_max_size,
+        )
+        started = time.perf_counter()
         try:
             self._pool = await asyncpg.create_pool(
                 dsn=self._settings.dsn,
@@ -67,20 +89,44 @@ class Database:
                 server_settings={"application_name": self._settings.app_name},
             )
         except OSError as exc:  # DNS/Connection refused — понятная ошибка конфигурации
-            raise ConfigError(f"Не удалось подключиться к PostgreSQL: {exc}") from exc
+            logger.error(
+                "PostgreSQL <<< ОШИБКА подключения к %s за %.2fs (%s): %s",
+                target, time.perf_counter() - started, exc.__class__.__name__, exc,
+            )
+            raise ConfigError(f"Не удалось подключиться к PostgreSQL ({target}): {exc}") from exc
         except Exception as exc:  # noqa: BLE001
-            raise DatabaseError(f"Ошибка инициализации пула БД: {exc.__class__.__name__}") from exc
+            logger.error(
+                "PostgreSQL <<< ОШИБКА инициализации пула %s за %.2fs (%s): %s",
+                target, time.perf_counter() - started, exc.__class__.__name__, exc,
+            )
+            raise DatabaseError(f"Ошибка инициализации пула БД ({target}): {exc.__class__.__name__}") from exc
 
         async with self._pool.acquire() as conn:
             await conn.execute(f"SET statement_timeout = {int(self._settings.db_statement_timeout_ms)}")
-        logger.info("Пул соединений с PostgreSQL создан (max_size=%d)", self._settings.db_pool_max_size)
+        logger.info(
+            "PostgreSQL <<< OK за %.2fs: пул соединений создан к %s (max_size=%d)",
+            time.perf_counter() - started, target, self._settings.db_pool_max_size,
+        )
 
     async def ensure_schema(self) -> None:
         assert self._pool is not None, "Database.connect() не вызван"
+        logger.info("PostgreSQL >>> проверка схемы БД (%d DDL-команд, все IF NOT EXISTS)…", len(SCHEMA_DDL))
+        started = time.perf_counter()
         for ddl in SCHEMA_DDL:
+            first_word = ddl.strip().split("\n")[0][:60]
+            logger.debug("PostgreSQL >>> DDL: %s…", first_word)
             await self._pool.execute(ddl)
         dim = await self._check_vector_dim()
+        logger.info(
+            "PostgreSQL <<< схема проверена/создана за %.2fs, vector-размерность embedding=%s",
+            time.perf_counter() - started, dim if dim is not None else "не задана",
+        )
         if dim and dim != self._settings.embedding_dim:
+            logger.error(
+                "PostgreSQL <<< НЕСОВМЕСТИМОСТЬ СХЕМЫ: kb_embeddings.embedding = vector(%d), "
+                "а EMBEDDING_DIM=%d — индексация/поиск будут падать",
+                dim, self._settings.embedding_dim,
+            )
             raise ConfigError(
                 f"В таблице kb_embeddings ожидается vector({self._settings.embedding_dim}), "
                 f"а в схеме — vector({dim})"
@@ -110,11 +156,19 @@ class Database:
         return self.pool.acquire()
 
     async def health(self) -> dict[str, str]:
+        started = time.perf_counter()
+        logger.info("PostgreSQL >>> healthcheck (SELECT 1, count kb_documents)…")
         try:
             row = await self.pool.fetchrow("SELECT 1 AS ok, (SELECT count(*) FROM kb_documents) AS docs")
-            return {"status": "ok", "detail": f"documents={row['docs']}"}
+            detail = f"documents={row['docs']}"
+            logger.info("PostgreSQL <<< healthcheck OK за %.3fs: %s", time.perf_counter() - started, detail)
+            return {"status": "ok", "detail": detail}
         except Exception as exc:  # noqa: BLE001
-            return {"status": "down", "detail": exc.__class__.__name__}
+            logger.error(
+                "PostgreSQL <<< healthcheck ПАДЕНИЕ за %.3fs (%s): %s — БД недоступна",
+                time.perf_counter() - started, exc.__class__.__name__, exc,
+            )
+            return {"status": "down", "detail": f"{exc.__class__.__name__}: {exc}"}
 
     async def close(self) -> None:
         if self._pool is not None:
