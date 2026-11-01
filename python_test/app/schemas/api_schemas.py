@@ -59,6 +59,29 @@ class IndexAcceptedResponse(BaseModel):
     message: str
 
 
+class RunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    force_reindex: bool = Field(
+        default=False,
+        description=(
+            "Пересоздать эмбеддинги для ВСЕХ концептов (по умолчанию False — уже "
+            "проиндексированные пропускаются, /run можно вызывать повторно, он досчитает только новое)."
+        ),
+    )
+
+
+class RunAcceptedResponse(BaseModel):
+    task_id: UUID
+    status: TaskStatus
+    files_found: int
+    concepts_total: int
+    unique_concepts: int
+    already_indexed: int
+    to_embed: int
+    message: str
+
+
 class TaskView(BaseModel):
     task_id: UUID
     status: TaskStatus

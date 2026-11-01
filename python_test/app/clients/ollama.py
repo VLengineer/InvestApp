@@ -1,7 +1,9 @@
 """Клиент Ollama (порт 11435) для эмбеддингов: Circuit Breaker + Retry + таймауты.
 
-Используется нативный REST API: POST /api/embed {"model", "prompt"} -> {"embedding": [...]}.
-Модель: nomic-embed-text (768 измерений).
+Используется нативный REST API: POST /api/embed {"model", "input": str} -> {"embeddings": [[...]]}.
+Поле «input» и ответ «embeddings» (массив векторов) — актуальный контракт /api/embed
+(Ollama >= 0.6). Для обратной совместимости также распознаётся старый одновекторный
+ответ {"embedding": [...]} (например, от OpenAI-совместимых прокси или ранних версий).
 """
 
 from __future__ import annotations
@@ -24,6 +26,11 @@ class BreakerState(StrEnum):
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
+
+
+class PermanentEmbeddingError(EmbeddingError):
+    """Ошибка, повторять которую бессмысленно (например, HTTP 4xx от Ollama:
+    модель не загружена / неверный запрос). Retry и circuit breaker её не лечат."""
 
 
 class CircuitBreaker:
@@ -75,7 +82,7 @@ class OllamaEmbeddingClient:
             timeout=httpx.Timeout(settings.request_timeout_s, connect=10.0),
             limits=httpx.Limits(max_connections=settings.index_concurrency * 2, max_keepalive_connections=4),
         )
-        self._breaker = CircuitBreaker()
+        self._breaker = CircuitBreaker(failure_threshold=max(self._settings.max_retries + 2, 5))
 
     # ------------------------------ lifecycle --------------------------------
     async def aclose(self) -> None:
@@ -117,32 +124,56 @@ class OllamaEmbeddingClient:
             return {"status": "down", "detail": f"{exc.__class__.__name__}: {exc}"}
 
     # ------------------------------- запросы ---------------------------------
+    @staticmethod
+    def _extract_vector(data: dict) -> list | None:
+        """Достаёт вектор из ответа /api/embed по обоим известным контрактам.
+
+        Актуальный (Ollama >= 0.6): {"embeddings": [[...], ...]} — массив векторов;
+        старый/прокси-вариант:          {"embedding": [...]}              — один вектор.
+        """
+        embeddings = data.get("embeddings")
+        if isinstance(embeddings, list) and embeddings:
+            first = embeddings[0]
+            if isinstance(first, list):
+                return first
+        vector = data.get("embedding")
+        if isinstance(vector, list) and vector:
+            return vector
+        return None
+
     async def _embed_once(self, text: str) -> list[float]:
         await self._breaker.acquire()
-        payload = {"model": self._settings.embedding_model, "prompt": text, "keep_alive": "5m"}
+        # Контракт /api/embed (в отличие от устаревшего /api/embeddings) — поле "input",
+        # а не "prompt"; сервер без "input" отвечает ошибкой валидации без поля эмбеддинга.
+        payload = {"model": self._settings.embedding_model, "input": text, "keep_alive": "5m"}
         url = f"{self._client.base_url}api/embed"
         started = time.perf_counter()
         logger.info(
-            "Ollama >>> POST %s (model=%s, prompt %d симв., timeout=%.0fs): начало запроса…",
+            "Ollama >>> POST %s (model=%s, input %d симв., timeout=%.0fs): начало запроса…",
             url, self._settings.embedding_model, len(text), self._settings.request_timeout_s,
         )
         try:
             resp = await self._client.post("/api/embed", json=payload)
-            resp.raise_for_status()
-            vector = resp.json().get("embedding")
-        except httpx.HTTPStatusError as exc:
-            await self._breaker.record_failure()
-            code = exc.response.status_code
-            body = ""
-            try:
-                body = exc.response.text[:300]
-            except Exception:  # noqa: BLE001
-                pass
-            logger.error("Ollama <<< HTTP %d за %.2fs: %s", code, time.perf_counter() - started, body)
-            raise EmbeddingError(
-                f"Ollama вернула HTTP {code}: {body}",
-                details={"status_code": code},
-            ) from exc
+            if resp.status_code >= 400:
+                # Ошибка upstream (например, «модель не загружена») НЕ считается сбоем
+                # сервиса: retry/circuit breaker бессмысленны — пробиваемся наружу сразу.
+                body = ""
+                try:
+                    body = resp.text[:300]
+                except Exception:  # noqa: BLE001
+                    pass
+                logger.error(
+                    "Ollama <<< HTTP %d за %.2fs: %s — повторные попытки не помогут, "
+                    "проверьте, что модель '%s' загружена (ollama pull)",
+                    resp.status_code, time.perf_counter() - started, body,
+                    self._settings.embedding_model,
+                )
+                raise PermanentEmbeddingError(
+                    f"Ollama вернула HTTP {resp.status_code}: {body}",
+                    details={"status_code": resp.status_code},
+                )
+            data = resp.json()
+            vector = self._extract_vector(data)
         except httpx.HTTPError as exc:
             await self._breaker.record_failure()
             logger.error(
@@ -152,9 +183,13 @@ class OllamaEmbeddingClient:
             raise EmbeddingError(f"Сетевая ошибка при обращении к Ollama: {exc.__class__.__name__}: {exc}") from exc
         else:
             elapsed = time.perf_counter() - started
-            if not isinstance(vector, list) or not vector:
+            if vector is None:
                 await self._breaker.record_failure()
-                logger.error("Ollama <<< ответ без поля 'embedding' (за %.2fs)", elapsed)
+                keys = sorted(data.keys()) if isinstance(data, dict) else type(data).__name__
+                logger.error(
+                    "Ollama <<< ответ без полей 'embeddings'/'embedding' (за %.2fs); ключи ответа: %s",
+                    elapsed, keys,
+                )
                 raise EmbeddingError("Пустой или некорректный ответ эмбеддинга от Ollama")
             if len(vector) != self._settings.embedding_dim:
                 await self._breaker.record_failure()
@@ -176,6 +211,9 @@ class OllamaEmbeddingClient:
         while True:
             try:
                 return await self._embed_once(text)
+            except PermanentEmbeddingError as exc:
+                logger.error("Ollama: несгораемая ошибка (HTTP 4xx), повтор бессмысленен: %s", exc)
+                raise
             except EmbeddingError as exc:
                 attempt += 1
                 if attempt > self._settings.max_retries:

@@ -127,6 +127,42 @@ class IndexingService:
         return to_embed, summary
 
     # --------------------------------- запуск --------------------------------
+    async def start_full_run(
+        self, *, force_reindex: bool = False, requested_by: str = "run-endpoint"
+    ) -> tuple[IndexTask, dict[str, Any]]:
+        """Эндпоинт POST /run: полная индексация ВСЕГО knowledge_base одним вызовом.
+
+        Собирает весь план сразу (все концепты всех файлов, без limit_documents) и
+        запускает ОДНУ фоновую задачу, которая сама проходит по всем документам до конца —
+        несколько раз вызывать /index не нужно. Уже проиндексированные концепты (по
+        content_hash + наличию эмбеддинга текущей модели) пропускаются автоматически;
+        повторный вызов /run досчитывает только то, что не загрузилось ранее.
+        """
+        options = {
+            "dry_run": False,
+            "force_reindex": bool(force_reindex),
+            "limit_documents": None,   # никакого лимита — индексируем весь файл/всю базу
+            "source_paths": None,      # без фильтра — все файлы knowledge_base
+        }
+        logger.info(
+            "RUN: запрошена ПОЛНАЯ индексация всего knowledge_base "
+            "(requested_by=%s, force_reindex=%s) — одна задача на весь файл, без limit_documents",
+            requested_by, force_reindex,
+        )
+        # ВАЖНО (исправление гонки в start()): пока build_plan() ожидает I/O, слот реестра
+        # остаётся PENDING и не блокирует повторный create() — второй /run создал бы дубль-задачу.
+        # Поэтому для /run сначала dry-run того же плана (он не занимает слот), и только если
+        # есть что индексировать — запускаем полноценную задачу.
+        _dry_task, dry_summary = await self.start({**options, "dry_run": True}, requested_by=requested_by)
+        if dry_summary["to_embed"] == 0:
+            logger.info(
+                "RUN: повторный вызов не требуется — к обработке 0 концептов "
+                "(всего=%d, уже проиндексировано=%d). В БД ничего не менялось.",
+                dry_summary["concepts_total"], dry_summary["already_indexed"],
+            )
+            return _dry_task, dry_summary
+        return await self.start(options, requested_by=requested_by)
+
     async def start(self, options: dict[str, Any], requested_by: str) -> tuple[IndexTask, dict[str, Any]]:
         logger.info("Индексация: запрошен запуск (requested_by=%s, options=%s)", requested_by, options)
         try:
@@ -235,7 +271,7 @@ class IndexingService:
 
     async def _process_one(self, task: IndexTask, concept: Concept, *, idx: int) -> bool:
         logger.info(
-            "[%d/%d] концепт '%s' (%s, hash=%s, текст %d симв.) — вызов Ollama /api/embeddings…",
+            "[%d/%d] концепт '%s' (%s, hash=%s, текст %d симв.) — вызов Ollama /api/embed…",
             idx, task.total, concept.concept_id, concept.source_path, concept.short_hash,
             len(concept.text),
         )

@@ -18,6 +18,8 @@ from app.schemas.api_schemas import (
     ConceptPreview,
     IndexAcceptedResponse,
     IndexOptions,
+    RunAcceptedResponse,
+    RunRequest,
     SearchHit,
     SearchRequest,
     TaskView,
@@ -63,6 +65,51 @@ async def start_indexing(
             f"к обработке={summary['to_embed']}. {limit_note}"
             "Каждый шаг (вызов Ollama, ответ, запись в БД) логируется: docker compose logs -f python_test; "
             "прогресс задачи — GET /index/tasks/{task_id}, содержимое БД — GET /stats."
+        ),
+    )
+
+
+# --------------------------------- RUN (полная индексация) --------------------
+@router.post(
+    "/run",
+    response_model=RunAcceptedResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Полная индексация всего knowledge_base ОДНИМ вызовом (без /index по кругу)",
+    description=(
+        "Запускает ОДНУ фоновую задачу, которая сама проходит по ВСЕМ концептам файла "
+        "_all/kb_all.json (и остальных JSON knowledge_base) и загружает их в RAG-хранилище "
+        "(PostgreSQL+pgvector) — несколько раз вызывать эндпоинт НЕ нужно.\n\n"
+        "Уже проиндексированные концепты пропускаются по content_hash, поэтому повторный "
+        "POST /run безопасен: он досчитает только то, что не загрузилось ранее "
+        "(например, после ошибок Ollama). Тело запроса можно не передавать вовсе; "
+        "{\\\"force_reindex\\\": true} пересоздаст эмбеддинги для всех концептов заново.\n\n"
+        "Прогресс — GET /index/tasks/{task_id} (или тот же GET /index/tasks), результат — GET /stats."
+    ),
+)
+async def run_full_indexing(
+    indexing: IndexingDep,
+    principal: Annotated[Principal, Depends(require_scope(Scope.INDEX))],
+    body: RunRequest | None = None,
+) -> RunAcceptedResponse:
+    task, summary = await indexing.start_full_run(
+        force_reindex=bool(body and body.force_reindex),
+        requested_by=principal.subject,
+    )
+    return RunAcceptedResponse(
+        task_id=task.task_id,
+        status=task.status,
+        files_found=summary["files_found"],
+        concepts_total=summary["concepts_total"],
+        unique_concepts=summary["unique_concepts"],
+        already_indexed=summary["already_indexed"],
+        to_embed=summary["to_embed"],
+        message=(
+            f"Полная индексация запущена ОДНОЙ фоновой задачей: файлов={summary['files_found']}, "
+            f"концептов всего={summary['concepts_total']}, уникальных={summary['unique_concepts']}, "
+            f"уже проиндексировано (пропущено)={summary['already_indexed']}, "
+            f"к обработке={summary['to_embed']}. Задание само дойдёт до конца списка — "
+            "повторно ничего вызывать не нужно. Прогресс: GET /index/tasks/"
+            f"{task.task_id}; содержимое БД: GET /stats."
         ),
     )
 
