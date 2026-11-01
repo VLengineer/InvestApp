@@ -1,0 +1,340 @@
+[
+  {
+    "id": "execution_modeling_concept",
+    "title": "Моделирование исполнения и транзакционные издержки (Execution Modeling)",
+    "category": "Исполнение ордеров",
+    "essence": "Процесс учета всех транзакционных издержек (комиссии, проскальзывание, задержки, влияние на рынок) для расчета реального математического ожидания стратегии. Исполнение — это «налог на торговлю», который может съесть 30-70% прибыли от идеального бэктеста.",
+    "formula": "Execution_Costs = Commissions + Slippage + Latency_Cost + Market_Impact\n\nГде:\n• Commissions — комиссии брокера/биржи\n• Slippage — проскальзывание цены\n• Latency_Cost — стоимость задержки исполнения\n• Market_Impact — влияние размера ордера на цену",
+    "interpretation": "Идеальный бэктест показывает +20% годовых, но с учетом реальных издержек доходность может быть +5% или даже отрицательной.\n\nПример:\n• Backtest без учета исполнения: 194.4% годовых\n• С учетом комиссий, slippage, latency: 68.4% годовых\n• Снижение доходности: 65%",
+    "sector_specifics": null,
+    "limitations": "Точное моделирование исполнения требует исторических данных по ликвидности, объемам и задержкам. В периоды кризисов издержки могут вырасти в 5-10 раз. HFT-алгоритмы могут front-run ваши ордера, увеличивая slippage.",
+    "related_concepts": [
+      "Backtesting",
+      "Transaction Costs",
+      "Slippage",
+      "Market Impact",
+      "Implementation Shortfall"
+    ],
+    "search_keywords": [
+      "моделирование исполнения",
+      "execution modeling",
+      "транзакционные издержки",
+      "transaction costs",
+      "налог на торговлю",
+      "реальная доходность стратегии",
+      "учет комиссий бэктест",
+      "исполнение ордеров"
+    ],
+    "source_text_excerpt": "Исполнение — это 'налог на торговлю', который нужно минимизировать. Идеальный backtest показывает +20% годовых, но с учетом комиссий, проскальзывания и задержек реальная доходность может быть +5% или даже отрицательной."
+  },
+  {
+    "id": "expectancy_with_execution_costs",
+    "title": "Математическое ожидание с учетом издержек исполнения (Expectancy with Execution Costs)",
+    "category": "Исполнение ордеров",
+    "essence": "Формула расчета реального математического ожидания торговой стратегии, учитывающая все транзакционные издержки. Стратегия прибыльна только если матожидание после вычета всех издержек остается положительным.",
+    "formula": "Expectancy = (WR × AvgWin) - (LR × AvgLoss) - Execution_Costs\n\nГде:\n• WR (Win Rate) = Win_Count / Total_Trades\n• LR (Loss Rate) = 1 - WR\n• AvgWin = средняя прибыль прибыльной сделки\n• AvgLoss = средний убыток убыточной сделки\n• Execution_Costs = Комиссии + Проскальзывание + Задержки\n\nУсловие прибыльности: Expectancy > 0\n\nМинимальный Win Rate:\nWR > (Execution_Costs + AvgLoss) / (AvgWin + AvgLoss)\n\nРеальный Risk/Reward:\nRR_real = (AvgWin - Execution_Costs) / (AvgLoss + Execution_Costs)",
+    "interpretation": "Пример расчета:\n• AvgWin = 2%, AvgLoss = 1%, Execution_Costs = 0.2%\n• Минимальный Win Rate: (0.2 + 1) / (2 + 1) = 40%\n\nВлияние на Risk/Reward:\n• RR_ideal = 2.0 / 1.0 = 2.0\n• RR_real = (2.0 - 0.2) / (1.0 + 0.2) = 1.5\n• Издержки снизили RR на 25%",
+    "sector_specifics": null,
+    "limitations": "Формула предполагает постоянные издержки, но в реальности они могут меняться в зависимости от волатильности и ликвидности. В кризисах Execution_Costs могут вырасти экспоненциально. Не учитывает упущенную выгоду от неисполненных ордеров.",
+    "related_concepts": [
+      "Mathematical Expectancy",
+      "Win Rate",
+      "Risk/Reward Ratio",
+      "Break-Even Win Rate",
+      "Trading Costs"
+    ],
+    "search_keywords": [
+      "математическое ожидание",
+      "expectancy",
+      "формула прибыльности",
+      "минимальный win rate",
+      "реальный risk reward",
+      "учет издержек",
+      "execution costs формула",
+      "прибыльность стратегии"
+    ],
+    "source_text_excerpt": "Expectancy = (WR × AvgWin) - (LR × AvgLoss) - Execution_Costs. Условие прибыльности: Expectancy > 0. Минимальный Win Rate: WR > (Execution_Costs + AvgLoss) / (AvgWin + AvgLoss)."
+  },
+  {
+    "id": "commissions_trading_costs",
+    "title": "Комиссии брокера и биржи (Commissions)",
+    "category": "Транзакционные издержки",
+    "essence": "Фиксированные или процентные сборы брокера и биржи за каждую сделку. Являются основной составляющей транзакционных издержек для розничных трейдеров. Могут быть снижены через переговоры с брокером и использование limit ордеров.",
+    "formula": "Commission = Trade_Size × Commission_Rate\n\nГде:\n• Trade_Size — размер сделки (в $ или акциях)\n• Commission_Rate — ставка комиссии (обычно 0.01-0.1% или 1-10 bps)\n\nТипы комиссий:\n• Fixed: $X за сделку\n• Percentage: X% от объема\n• Per share: $X за акцию/контракт\n• Tiered: снижение ставки при увеличении объема",
+    "interpretation": "Типичные значения:\n• Акции US: $0.005-0.01/акцию или 0.1-0.3%\n• Фьючерсы: $1-5/контракт round turn\n• Форекс: 0.5-2 pips spread\n• Крипта: 0.02-0.1% (maker/taker)\n\nПример:\n• Портфель $100,000, 20 сделок/мес, размер $10,000\n• Commission 0.1%: $400/мес = 4.8% годовых\n• Negotiated 0.05%: $200/мес = 2.4% годовых",
+    "sector_specifics": null,
+    "limitations": "Комиссии могут меняться в зависимости от объема торгов и типа инструмента. Maker fee обычно ниже taker fee (limit ордера дешевле market). Некоторые брокеры предлагают zero-commission trading, но компенсируют через wider spreads или payment for order flow.",
+    "related_concepts": [
+      "Broker Fees",
+      "Exchange Fees",
+      "Maker vs Taker",
+      "Tiered Pricing",
+      "Round Turn Commission"
+    ],
+    "search_keywords": [
+      "комиссии брокера",
+      "commissions",
+      "broker fees",
+      "биржевые сборы",
+      "maker taker fee",
+      "tiered pricing",
+      "round turn",
+      "снижение комиссий"
+    ],
+    "source_text_excerpt": "Commission = Trade_Size × Commission_Rate. Типичные значения: Акции US 0.1-0.3%, Фьючерсы $1-5/контракт, Форекс 0.5-2 pips, Крипта 0.02-0.1%."
+  },
+  {
+    "id": "slippage_execution_cost",
+    "title": "Проскальзывание цены (Slippage)",
+    "category": "Транзакционные издержки",
+    "essence": "Разница между ожидаемой ценой исполнения ордера и фактической ценой исполнения. Возникает из-за низкой ликвидности, высокой волатильности, больших размеров ордеров и задержек исполнения. Может быть минимизировано через использование limit ордеров и торговлю в часы высокой ликвидности.",
+    "formula": "Slippage = (Execution_Price - Expected_Price) / Expected_Price\n\nГде:\n• Execution_Price — фактическая цена исполнения\n• Expected_Price — ожидаемая цена (сигнальная цена)\n\nПричины slippage:\n• Низкая ликвидность\n• Высокая волатильность\n• Большие размеры ордеров\n• Задержка исполнения (latency)\n• Market ордера (не limit)",
+    "interpretation": "Типичные значения:\n• High cap stocks: 0.01-0.05%\n• Small cap stocks: 0.1-0.5%\n• Forex majors: 0.5-2 pips\n• Crypto: 0.05-0.5%\n• Futures: 0.5-2 ticks\n\nПример:\n• Сигнал на покупку AAPL по $150.00\n• Market ордер исполнен по $150.15\n• Slippage = ($150.15 - $150.00) / $150.00 = 0.10%\n\nГодовое влияние:\n• 20 сделок/мес × 12 мес × 0.10% × 2 = 4.8% годовых",
+    "sector_specifics": null,
+    "limitations": "Slippage непредсказуемо и может меняться экспоненциально во время новостей и кризисов. В периоды низкой ликвидности slippage может достигать 1-5%. HFT-алгоритмы могут front-run ваши ордера, увеличивая slippage. Limit ордера снижают slippage, но есть риск неисполнения.",
+    "related_concepts": [
+      "Market Impact",
+      "Liquidity",
+      "Limit vs Market Orders",
+      "Bid-Ask Spread",
+      "Implementation Shortfall"
+    ],
+    "search_keywords": [
+      "проскальзывание",
+      "slippage",
+      "разница цен исполнения",
+      "ликвидность slippage",
+      "market order slippage",
+      "limit order slippage",
+      "волатильность slippage",
+      "снижение проскальзывания"
+    ],
+    "source_text_excerpt": "Slippage = (Execution_Price - Expected_Price) / Expected_Price. Типичные значения: High cap 0.01-0.05%, Small cap 0.1-0.5%, Forex 0.5-2 pips, Crypto 0.05-0.5%."
+  },
+  {
+    "id": "latency_execution_cost",
+    "title": "Задержка исполнения (Latency)",
+    "category": "Транзакционные издержки",
+    "essence": "Время между генерацией торгового сигнала и фактическим исполнением ордера. Включает время расчета индикаторов, передачи ордера на биржу, обработки брокером и исполнения на бирже. При задержке > 100ms стоимость растет экспоненциально из-за изменения цены.",
+    "formula": "Latency_Cost = f(Latency_ms, Volatility, Liquidity)\n\nКомпоненты задержки:\n• Signal generation: расчет индикаторов (1-100ms)\n• Network: передача ордера на биржу (1-500ms)\n• Broker processing: обработка брокером (1-100ms)\n• Exchange matching: исполнение на бирже (0.1-50ms)\n\nВлияние на цену:\n• Latency < 10ms: negligible\n• Latency 10-100ms: 0.01-0.05% cost\n• Latency 100-500ms: 0.05-0.2% cost\n• Latency > 500ms: 0.2%+ cost",
+    "interpretation": "Пример расчета:\n• Low vol, high liquidity, 50ms latency: 0.0019% cost\n• High vol, low liquidity, 50ms latency: 0.0347% cost\n• High vol, high liquidity, 200ms latency: 0.0194% cost\n\nЗадержка критична для:\n• HFT стратегий (требуется < 10ms)\n• Скальпинга (требуется < 50ms)\n• Арбитражных стратегий (требуется < 100ms)\n\nМинимизация:\n• VPS рядом с биржей (co-location)\n• Прямой доступ к бирже (DMA)\n• Оптимизация кода (C++ вместо Python)\n• Fiber/microwave connection",
+    "sector_specifics": null,
+    "limitations": "Задержка может варьироваться в зависимости от времени суток, загрузки сети и брокера. В периоды высокой волатильности задержка может вырасти в 5-10 раз. Co-location стоит дорого ($1000-5000/мес). Оптимизация кода требует специальных навыков.",
+    "related_concepts": [
+      "Co-location",
+      "Direct Market Access (DMA)",
+      "High-Frequency Trading (HFT)",
+      "Network Latency",
+      "Execution Speed"
+    ],
+    "search_keywords": [
+      "задержка исполнения",
+      "latency",
+      "задержка сети",
+      "co-location",
+      "прямой доступ к бирже",
+      "dma",
+      "скорость исполнения",
+      "vps трейдинг",
+      "hft задержка"
+    ],
+    "source_text_excerpt": "Latency_Cost = f(Latency_ms, Volatility, Liquidity). Latency < 10ms: negligible. Latency 10-100ms: 0.01-0.05% cost. Latency > 500ms: 0.2%+ cost."
+  },
+  {
+    "id": "market_impact_cost",
+    "title": "Влияние на рынок (Market Impact)",
+    "category": "Транзакционные издержки",
+    "essence": "Движение цены против вас из-за размера вашего ордера. Критично для крупных институциональных ордеров (> 1% ADV — Average Daily Volume). Может быть минимизировано через разбиение ордера на части (TWAP/VWAP), использование dark pools и iceberg ордеров.",
+    "formula": "Market_Impact = (Trade_Size / ADV) ^ Impact_Exponent × Impact_Coefficient\n\nГде:\n• Trade_Size — размер вашего ордера\n• ADV (Average Daily Volume) — средний дневной объем\n• Impact_Exponent — обычно 0.5-1.0\n• Impact_Coefficient — обычно 0.1-1.0\n\nКогда критично:\n• Trade_Size > 1% ADV\n• Illiquid instruments\n• Large institutional orders",
+    "interpretation": "Пример:\n• ADV = 1,000,000 акций\n• Ордер = 50,000 акций (5% ADV)\n• Impact_Coefficient = 0.5, Impact_Exponent = 0.6\n• Market_Impact = (50,000/1,000,000)^0.6 × 0.5 = 8.25%\n\nРешение — разбиение:\n• Разбить на 10 частей по 5,000 акций\n• Исполнять в течение дня (TWAP)\n• Impact снизится до: (5,000/1,000,000)^0.6 × 0.5 = 1.65%\n\nМинимизация:\n• TWAP (Time-Weighted Average Price)\n• VWAP (Volume-Weighted Average Price)\n• Dark pools\n• Iceberg ордера",
+    "sector_specifics": null,
+    "limitations": "Market impact непредсказуем и зависит от рыночных условий. В кризисах impact может вырасти в 5-10 раз. Dark pools могут не обеспечить полное исполнение. TWAP/VWAP предсказуемы для HFT, которые могут front-run.",
+    "related_concepts": [
+      "TWAP",
+      "VWAP",
+      "Dark Pools",
+      "Iceberg Orders",
+      "Average Daily Volume (ADV)"
+    ],
+    "search_keywords": [
+      "влияние на рынок",
+      "market impact",
+      "размер ордера",
+      "adv",
+      "средний дневной объем",
+      "twap vwap",
+      "разбиение ордера",
+      "dark pools",
+      "iceberg orders"
+    ],
+    "source_text_excerpt": "Market_Impact = (Trade_Size / ADV) ^ Impact_Exponent × Impact_Coefficient. Когда критично: Trade_Size > 1% ADV, Illiquid instruments, Large institutional orders."
+  },
+  {
+    "id": "smart_order_routing_sor",
+    "title": "Smart Order Routing (SOR) — умная маршрутизация ордеров",
+    "category": "Оптимизация исполнения",
+    "essence": "Алгоритм автоматического выбора лучшей площадки для исполнения ордера на основе цены, ликвидности и комиссий. Минимизирует общую стоимость исполнения через разбиение ордера между несколькими площадками (биржи, dark pools).",
+    "formula": "SOR алгоритм:\n1. Получить котировки со всех площадок\n2. Рассчитать effective price = price + fee\n3. Отсортировать по effective price\n4. Исполнять на лучшей площадке до исчерпания ликвидности\n5. Переходить к следующей площадке\n\nПример:\n• Exchange A: $150.10, liquidity 1000, fee $0.003\n• Exchange B: $150.12, liquidity 5000, fee $0.002\n• Dark Pool D: $150.08, liquidity 2000, fee $0.002\n• Нужно купить 3000 акций\n\nРезультат:\n• 2000 акций @ Dark Pool D: $150.082\n• 1000 акций @ Exchange A: $150.103\n• Средняя цена: $150.089 (вместо $150.15)\n• Экономия: $0.061 × 3000 = $183",
+    "interpretation": "Преимущества SOR:\n• Автоматический поиск лучшей цены\n• Использование dark pools для снижения market impact\n• Минимизация комиссий через выбор площадок с maker rebate\n• Снижение slippage через использование всей доступной ликвидности\n\nНедостатки:\n• Требует доступа к множеству площадок\n• Может быть медленнее прямого доступа\n• Payment for order flow может конфликтовать с интересами клиента",
+    "sector_specifics": null,
+    "limitations": "SOR может не найти лучшую цену в периоды высокой волатильности. Dark pools могут не обеспечить полное исполнение. Payment for order flow может привести к худшему исполнению. Требует сложной инфраструктуры и подключения к множеству площадок.",
+    "related_concepts": [
+      "Dark Pools",
+      "Exchange Connectivity",
+      "Best Execution",
+      "Payment for Order Flow",
+      "Market Maker Rebate"
+    ],
+    "search_keywords": [
+      "smart order routing",
+      "sor",
+      "умная маршрутизация",
+      "лучшая цена исполнения",
+      "dark pools",
+      "разбиение ордера",
+      "best execution",
+      "алгоритм исполнения"
+    ],
+    "source_text_excerpt": "SOR выбирает лучшую площадку для исполнения. Алгоритм: Сортируем по effective price (price + fee), Исполняем на лучшей площадке до исчерпания ликвидности, Переходим к следующей."
+  },
+  {
+    "id": "twap_execution_algorithm",
+    "title": "TWAP (Time-Weighted Average Price) — алгоритм исполнения",
+    "category": "Оптимизация исполнения",
+    "essence": "Алгоритм исполнения крупных ордеров путем разбиения на равные части и исполнения через равные промежутки времени. Минимизирует market impact и обеспечивает среднюю цену, близкую к TWAP дня. Используется для ордеров > 1% ADV.",
+    "formula": "TWAP стратегия:\n• Разбить ордер на N равных частей\n• Исполнять каждую часть через равные интервалы времени\n• Общая длительность: обычно 1-5 часов\n\nПример:\n• Задача: купить 100,000 акций\n• ADV: 5,000,000 акций (2% от ADV)\n• TWAP: разбить на 20 частей по 5,000 акций\n• Исполнять каждые 15 минут в течение 5 часов\n• Каждая часть: 0.1% ADV (безопасно)",
+    "interpretation": "Преимущества TWAP:\n• Снижение market impact\n• Средняя цена близка к TWAP дня\n• Предсказуемость исполнения\n• Простота реализации\n\nНедостатки:\n• Риск не исполнить весь ордер\n• Предсказуемость для HFT (могут front-run)\n• Не учитывает профиль объема дня\n• Может быть медленнее VWAP в определенные часы",
+    "sector_specifics": null,
+    "limitations": "TWAP не учитывает, что объем торгов неравномерен в течение дня (обычно выше на открытии и закрытии). HFT-алгоритмы могут detect TWAP паттерн и front-run. В периоды низкой ликвидности TWAP может не исполнить весь ордер. Требует мониторинга и ручной корректировки.",
+    "related_concepts": [
+      "VWAP",
+      "Market Impact",
+      "Execution Algorithms",
+      "Large Order Execution",
+      "Time Slicing"
+    ],
+    "search_keywords": [
+      "twap",
+      "time weighted average price",
+      "алгоритм twap",
+      "разбиение ордера по времени",
+      "исполнение крупных ордеров",
+      "снижение market impact",
+      "алгоритмы исполнения",
+      "twap vs vwap"
+    ],
+    "source_text_excerpt": "TWAP стратегия: Разбить на 20 частей по 5,000 акций, Исполнять каждые 15 минут в течение 5 часов. Преимущества: Снижение market impact, Средняя цена близка к TWAP дня, Предсказуемость исполнения."
+  },
+  {
+    "id": "vwap_execution_algorithm",
+    "title": "VWAP (Volume-Weighted Average Price) — алгоритм исполнения",
+    "category": "Оптимизация исполнения",
+    "essence": "Алгоритм исполнения крупных ордеров путем исполнения пропорционально историческому профилю объема рынка. Минимизирует market impact и обеспечивает среднюю цену, близкую к VWAP дня. Используется для ордеров > 1% ADV и скрывает истинный размер ордера.",
+    "formula": "VWAP исполнение:\n• Получить исторический профиль объема дня\n• Исполнять пропорционально объему в каждый час\n\nПример профиля объема:\n• 10:00-11:00: 15% дневного объема\n• 11:00-12:00: 10%\n• 12:00-13:00: 5% (обед)\n• 13:00-14:00: 8%\n• 14:00-15:00: 12%\n• 15:00-16:00: 20% (закрытие)\n• 16:00-17:00: 30% (аукцион)\n\nЗадача: купить 50,000 акций\nVWAP исполнение:\n• 10:00-11:00: 50,000 × 0.15 = 7,500 акций\n• 11:00-12:00: 50,000 × 0.10 = 5,000 акций\n• 12:00-13:00: 50,000 × 0.05 = 2,500 акций\n• ...",
+    "interpretation": "Преимущества VWAP:\n• Минимальный market impact\n• Цена близка к рыночной VWAP\n• Скрывает истинный размер ордера\n• Учитывает профиль объема дня\n\nНедостатки:\n• Требует точного исторического профиля объема\n• Может не исполнить весь ордер при изменении объема\n• Предсказуемость для HFT\n• Сложнее реализовать чем TWAP",
+    "sector_specifics": null,
+    "limitations": "VWAP требует точного исторического профиля объема, который может меняться. В дни новостей профиль объема может сильно отличаться от исторического. HFT-алгоритмы могут detect VWAP паттерн. Не подходит для очень срочных ордеров.",
+    "related_concepts": [
+      "TWAP",
+      "Market Impact",
+      "Volume Profile",
+      "Execution Algorithms",
+      "Large Order Execution"
+    ],
+    "search_keywords": [
+      "vwap",
+      "volume weighted average price",
+      "алгоритм vwap",
+      "профиль объема",
+      "исполнение по объему",
+      "снижение market impact",
+      "алгоритмы исполнения",
+      "vwap vs twap"
+    ],
+    "source_text_excerpt": "VWAP исполняет пропорционально объему рынка. Преимущества: Минимальный market impact, Цена близка к рыночной VWAP, Скрывает истинный размер ордера."
+  },
+  {
+    "id": "iceberg_orders",
+    "title": "Iceberg Orders — айсберг ордера",
+    "category": "Оптимизация исполнения",
+    "essence": "Тип ордера, при котором показывается только часть общего размера ордера (visible size), а остальная часть скрыта (hidden size). Когда видимая часть исполняется, автоматически выставляется следующая такая же часть. Снижает market impact и скрывает истинный размер ордера от рынка.",
+    "formula": "Iceberg ордер:\n• Реальный ордер: купить 50,000 акций @ $150.00\n• Visible size: 500 акций\n• Hidden size: 49,500 акций\n\nМеханизм:\n1. Выставляется 500 акций @ $150.00\n2. Когда 500 акций исполняются\n3. Автоматически выставляется еще 500 акций\n4. Повторяется пока не исполнится весь ордер (50,000 акций)",
+    "interpretation": "Преимущества iceberg:\n• Не пугает рынок большим размером\n• Снижает adverse selection\n• Другие не видят истинный размер\n• Снижает market impact\n\nНедостатки:\n• Может не исполниться полностью\n• HFT могут detect iceberg по паттернам\n• Не все брокеры поддерживают\n• Может быть медленнее market ордера",
+    "sector_specifics": null,
+    "limitations": "HFT-алгоритмы могут detect iceberg ордера по паттернам повторного выставления одинакового размера. Не все биржи и брокеры поддерживают iceberg ордера. Может не исполниться полностью в периоды низкой ликвидности. Требует мониторинга.",
+    "related_concepts": [
+      "Hidden Orders",
+      "Market Impact",
+      "Adverse Selection",
+      "Large Order Execution",
+      "Order Types"
+    ],
+    "search_keywords": [
+      "iceberg orders",
+      "айсберг ордера",
+      "скрытые ордера",
+      "hidden orders",
+      "снижение market impact",
+      "скрытый размер ордера",
+      "типы ордеров",
+      "исполнение крупных ордеров"
+    ],
+    "source_text_excerpt": "Iceberg Orders: Показывать только часть ордера. Реальный ордер: 50,000 акций, Visible size: 500 акций, Hidden size: 49,500 акций. Преимущества: Не пугает рынок, Снижает adverse selection, Другие не видят истинный размер."
+  },
+  {
+    "id": "execution_metrics_benchmarks",
+    "title": "Метрики и бенчмарки качества исполнения (Execution Metrics)",
+    "category": "Мониторинг исполнения",
+    "essence": "Количественные показатели для оценки качества исполнения ордеров и сравнения с бенчмарками. Позволяют выявить проблемы с исполнением, оптимизировать издержки и контролировать реализацию стратегии.",
+    "formula": "Ключевые метрики:\n\n1. Commission Rate:\n   Отлично: < 0.05%\n   Хорошо: 0.05-0.10%\n   Удовлетворительно: 0.10-0.20%\n   Плохо: > 0.20%\n\n2. Slippage:\n   Отлично: < 0.05%\n   Хорошо: 0.05-0.10%\n   Удовлетворительно: 0.10-0.20%\n   Плохо: > 0.20%\n\n3. Latency:\n   Отлично: < 20ms\n   Хорошо: 20-50ms\n   Удовлетворительно: 50-100ms\n   Плохо: > 100ms\n\n4. Fill Rate:\n   Отлично: > 98%\n   Хорошо: 95-98%\n   Удовлетворительно: 90-95%\n   Плохо: < 90%\n\n5. Market Impact:\n   Отлично: < 0.05%\n   Хорошо: 0.05-0.15%\n   Удовлетворительно: 0.15-0.30%\n   Плохо: > 0.30%\n\n6. Total Execution Cost:\n   Отлично: < 0.15%\n   Хорошо: 0.15-0.30%\n   Удовлетворительно: 0.30-0.50%\n   Плохо: > 0.50%",
+    "interpretation": "Implementation Shortfall = Execution_Price - Decision_Price\nVWAP_Slippage = Execution_VWAP - Market_VWAP\nFill_Rate = Filled_Shares / Ordered_Shares\nAverage_Fill_Time = Σ(Fill_Time) / N_trades\n\nПример анализа:\n• Slippage > 0.20% → проверить ликвидность, время торговли\n• Fill_Rate < 95% → проверить размер ордера, тип ордера\n• Latency > 100ms → проверить инфраструктуру",
+    "sector_specifics": null,
+    "limitations": "Бенчмарки могут меняться в зависимости от типа инструмента, размера ордера и рыночных условий. В кризисах метрики могут ухудшиться в 5-10 раз. Требует регулярного мониторинга и сравнения с историческими данными.",
+    "related_concepts": [
+      "Implementation Shortfall",
+      "Fill Rate",
+      "Execution Quality",
+      "Trading Analytics",
+      "Performance Attribution"
+    ],
+    "search_keywords": [
+      "метрики исполнения",
+      "execution metrics",
+      "бенчмарки исполнения",
+      "slippage benchmark",
+      "fill rate",
+      "implementation shortfall",
+      "качество исполнения",
+      "анализ исполнения"
+    ],
+    "source_text_excerpt": "Метрики: Commission Rate < 0.05% (Отлично), Slippage < 0.05% (Отлично), Latency < 20ms (Отлично), Fill Rate > 98% (Отлично), Total Execution Cost < 0.15% (Отлично)."
+  },
+  {
+    "id": "execution_risks_pitfalls",
+    "title": "Риски и подводные камни исполнения (Execution Risks)",
+    "category": "Риск-менеджмент исполнения",
+    "essence": "Основные риски, связанные с исполнением торговых ордеров: недооценка издержек, переобучение под историческое исполнение, игнорирование market impact и latency arbitrage со стороны HFT. Могут превратить прибыльную стратегию в убыточную.",
+    "formula": "Основные риски:\n\n1. Недооценка издержек:\n   Backtest: Sharpe 2.5, доходность 25%/год\n   Реальность: Sharpe 0.8, доходность 5%/год\n   Разница: комиссии + slippage + latency\n\n2. Overfitting к историческому исполнению:\n   Исторический slippage: 0.08%\n   Оптимизированная стратегия работает при slippage < 0.10%\n   Реальный slippage: 0.15%\n   Стратегия становится убыточной\n\n3. Игнорирование Market Impact:\n   Backtest: ордер 10,000 акций исполняется мгновенно\n   Реальность: ордер 10,000 акций двигает цену на 0.2%\n\n4. Latency Arbitrage со стороны HFT:\n   Вы отправляете market ордер\n   HFT detect за 5ms до исполнения\n   Покупают перед вами, поднимают цену\n   Вы покупаете дороже",
+    "interpretation": "Решения:\n\n1. Недооценка издержек:\n   • Всегда закладывать conservative estimates\n   • Комиссии: × 1.5 от заявленных брокером\n   • Slippage: × 2 от исторического среднего\n   • Latency: × 3 от средней\n\n2. Overfitting:\n   • Stress test с повышенными издержками\n   • Использовать worst-case slippage (95th percentile)\n   • Мониторить исполнение в real-time\n\n3. Market Impact:\n   • Моделировать: cost = (size/ADV)^0.6 × coefficient\n   • Использовать execution algorithms (TWAP/VWAP)\n   • Разбивать крупные ордера\n\n4. HFT front-running:\n   • Использовать limit ордера\n   • Randomize время отправки ордеров\n   • Использовать dark pools\n   • Co-location",
+    "sector_specifics": null,
+    "limitations": "Не все риски можно полностью устранить. HFT front-running особенно сложно избежать для розничных трейдеров. Market impact непредсказуем в кризисах. Conservative estimates могут быть слишком пессимистичными и привести к отказу от прибыльных стратегий.",
+    "related_concepts": [
+      "Backtesting Bias",
+      "Overfitting",
+      "HFT Front-Running",
+      "Market Impact Modeling",
+      "Execution Risk Management"
+    ],
+    "search_keywords": [
+      "риски исполнения",
+      "execution risks",
+      "недооценка издержек",
+      "overfitting slippage",
+      "hft front running",
+      "latency arbitrage",
+      "market impact риск",
+      "подводные камни исполнения"
+    ],
+    "source_text_excerpt": "Риски: Недооценка издержек (Backtest Sharpe 2.5 → Реальность Sharpe 0.8). Overfitting к историческому исполнению. Игнорирование Market Impact. Latency Arbitrage со стороны HFT."
+  }
+]
