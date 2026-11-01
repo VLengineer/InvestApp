@@ -86,9 +86,9 @@ def _extract_scopes(payload: dict) -> frozenset[Scope]:
 
 
 async def get_principal(
+    settings: Annotated[Settings, Depends(get_settings)],
     authorization: Annotated[str | None, Header(description="Bearer <JWT>")] = None,
     x_api_key: Annotated[str | None, Header(description="Машинный доступ (n8n)")] = None,
-    settings: Annotated[Settings, Depends(get_settings)],
 ) -> Principal:
     """Два канала доступа: JWT (основной) и X-API-Key (для внутренних сервисов)."""
     if authorization:

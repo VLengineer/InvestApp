@@ -9,6 +9,7 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
@@ -65,11 +66,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version=settings.app_version,
         description=(
             "Индексация «общих» JSON из knowledge_base через Ollama (nomic-embed-text) "
-            "с сохранением документов и векторов в PostgreSQL+pgvector. Доступ по JWT."
+            "с сохранением документов и векторов в PostgreSQL+pgvector. Доступ по JWT.\n\n"
+            "**Как пользоваться Swagger:** нажмите `Authorize` и введите токен "
+            "(сначала получите его через `POST /auth/token` с admin-ключом в X-API-Key) "
+            "или используйте машинный ключ в поле API_KEY_BEARER (вставляется как X-API-Key)."
         ),
         docs_url=None if settings.is_production else "/docs",
-        redoc_url=None,
+        redoc_url=None if settings.is_production else "/redoc",
         openapi_url=None if settings.is_production else "/openapi.json",
+        # схемы security описаны вручную в _custom_openapi (JWT Bearer + X-API-Key)
     )
     app.state.settings = settings
     app.state.container: Container | None = None
@@ -110,4 +115,46 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     app.include_router(api_router)
+
+    # ------------------------- Swagger «как положено» ------------------------
+    def _custom_openapi() -> dict[str, Any]:
+        """OpenAPI со стандартными схемами security: JWT Bearer и X-API-Key."""
+        if app.openapi_schema:
+            return app.openapi_schema
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+        )
+        schema.setdefault("components", {})["securitySchemes"] = {
+            "BearerJWT": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "description": "JWT из POST /auth/token (Authorization: Bearer <token>)",
+            },
+            "ApiKeyHeader": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-API-Key",
+                "description": "Машинный ключ из env API_KEYS (для n8n и внутренних сервисов)",
+            },
+        }
+        # /auth/token — только admin-ключ; остальные защищённые эндпоинты — JWT или API-ключ
+        auth_paths = [p for p in schema.get("paths", {}) if p.startswith("/auth/")]
+        open_paths = {"/live", "/ready"}
+        for path, item in schema.get("paths", {}).items():
+            if path in open_paths:
+                continue
+            for operation in item.values():
+                if isinstance(operation, dict):
+                    operation["security"] = (
+                        [{"ApiKeyHeader": []}] if path in auth_paths else [{"BearerJWT": []}, {"ApiKeyHeader": []}]
+                    )
+        schema["x-error-format"] = {"code": "string", "message": "string", "details": {}}
+        app.openapi_schema = schema
+        return schema
+
+    app.openapi = _custom_openapi
     return app
