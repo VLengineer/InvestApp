@@ -21,6 +21,24 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        # Точечная замена поведения: у штатных источников отключаем json.loads()
+        # для сложных (list) полей — списки разбирает field_validator
+        # _split_comma_lists (JSON-список либо строка через запятую).
+        # Все остальные параметры источников (env_file, prefix, case_sensitive...)
+        # остаются штатными.
+        for source in (env_settings, dotenv_settings):
+            source.decode_complex_value = lambda _field_name, _field, value: value
+        return (init_settings, env_settings, dotenv_settings, file_secret_settings)
+
     # ----------------------------- Приложение ------------------------------
     app_name: str = "rag-indexer"
     app_version: str = "1.0.0"
@@ -72,14 +90,23 @@ class Settings(BaseSettings):
     def _upper_log_level(cls, v: str) -> str:
         return v.upper()
 
-    @field_validator("api_keys", mode="before")
+    @field_validator("api_keys", "common_dir_names", mode="before")
     @classmethod
-    def _split_api_keys(cls, v: object) -> object:
-        """API_KEYS допускает как JSON-список, так и строку через запятую."""
+    def _split_comma_lists(cls, v: object) -> object:
+        """Списки из env: либо JSON ("["a","b"]"), либо строка через запятую ("a,b")."""
         if isinstance(v, str):
             stripped = v.strip()
+            if not stripped:
+                return []
             if stripped.startswith("["):
-                return stripped
+                try:
+                    import json
+
+                    parsed = json.loads(stripped)
+                    if isinstance(parsed, list):
+                        return [str(x).strip() for x in parsed if str(x).strip()]
+                except ValueError:
+                    pass  # невалидный JSON (например, оборванный) — treat as raw string
             return [k.strip() for k in stripped.split(",") if k.strip()]
         return v
 
