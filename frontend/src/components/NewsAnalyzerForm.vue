@@ -98,7 +98,7 @@ function refreshTs() {
     <p v-if="error" class="status error">{{ error }}</p>
 
     <div v-if="result" class="status success">
-      <p>✅ Новость принята и сохранена.</p>
+      <p>✅ Новость отправлена на вебхук.</p>
       <pre>{{ JSON.stringify(result, null, 2) }}</pre>
     </div>
   </form>

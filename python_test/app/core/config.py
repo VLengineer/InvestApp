@@ -84,6 +84,27 @@ class Settings(BaseSettings):
     retry_backoff_base_s: float = 0.5
     retry_max_backoff_s: float = 20.0
 
+    # ------------------------------- n8n (news_analyzer) --------------------
+    # БАЗОВЫЙ URL n8n из env (в docker-compose это http://n8n:5678/).
+    n8n_base_url: str = Field(
+        default="http://n8n:5678/",
+        description="Базовый адрес n8n (env: N8N_BASE_URL)",
+    )
+    # ПУТЬ к вебхуку анализа новостей — тоже вынесен в env, меняется без кода.
+    n8n_news_webhook_path: str = Field(
+        default="/webhook/news_analizer",
+        description="Путь вебхука n8n для анализа новостей (env: N8N_NEWS_WEBHOOK_PATH)",
+    )
+    n8n_request_timeout_s: float = Field(
+        default=30.0, gt=0, description="Таймаут запроса к вебхуку n8n, сек (env: N8N_REQUEST_TIMEOUT_S)"
+    )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def n8n_webhook_url(self) -> str:
+        """Полный URL вебхука = base (env N8N_BASE_URL) + путь (env N8N_NEWS_WEBHOOK_PATH)."""
+        return self.n8n_base_url.rstrip("/") + "/" + self.n8n_news_webhook_path.lstrip("/")
+
     # -------------------------------- PostgreSQL ----------------------------
     postgres_host: str = "postgres"
     postgres_port: int = 5432

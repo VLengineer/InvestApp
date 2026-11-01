@@ -12,7 +12,8 @@
    python_test/news_analyzer/
        __init__.py      # экспорт публичных классов пакета
        schemas.py       # pydantic-модели (контракт API)
-       repository.py    # работа с БД (asyncpg, пул из app.db.database.Database)
+       client.py        # HTTP-клиенты внешних сервисов (пример: n8n webhook)
+       repository.py    # (опционально) работа с БД (asyncpg, пул из app.db.database.Database)
        service.py       # бизнес-логика
    ```
 
@@ -38,20 +39,27 @@
    ```
 
 7. **Схема БД** (если нужны таблицы): SQL-файл `init_db/NN_<имя>.sql` для
-   первичной инициализации postgres **и** идемпотентный DDL в `ensure_schema()`
-   репозитория (для локального запуска).
+   первичной инициализации postgres. Если сервис сам работает с БД — добавить
+   идемпотентный DDL в `ensure_schema()` своего репозитория; если записи пишет
+   внешний пайплайн (как news_analyzer → n8n), достаточно init-скрипта.
 
 8. `.env` микросервиса (`python_test/.env`) — общие настройки; специфичные
-   переменные добавляйте в `Settings` (`app/core/config.py`).
+   переменные добавляйте в `Settings` (`app/core/config.py`). Внешние адреса
+   (например путь вебхука n8n: `N8N_BASE_URL` + `N8N_NEWS_WEBHOOK_PATH`) —
+   только через env, не хардкодом.
 
 ## Текущие микросервисы
 
-| Папка кода                       | Файл эндпоинтов            | Эндпоинты                                   | Таблица                     |
+| Папка кода                       | Файл эндпоинтов            | Эндпоинты                                   | Что делает                  |
 |----------------------------------|----------------------------|---------------------------------------------|-----------------------------|
-| `app/` (RAG-индексатор, общий)   | `app/api/routes/rag.py`    | `/index`, `/run`, `/search`, `/stats`, …    | `kb_documents`, `kb_embeddings` |
-| `news_analyzer/`                 | `app/api/routes/news.py`   | `POST /news/analyze`, `GET /news/health`    | `market_news_ml_dataset`    |
+| `app/` (RAG-индексатор, общий)   | `app/api/routes/rag.py`    | `/index`, `/run`, `/search`, `/stats`, …    | таблицы `kb_documents`, `kb_embeddings` |
+| `news_analyzer/`                 | `app/api/routes/news.py`   | `POST /news/analyze`, `GET /news/health`    | пересылает новость на вебхук n8n (в БД НЕ пишет) |
 
-Фронтенд Vue (`frontend/`, контейнер `frontend`) отправляет форму на вебхук
-n8n `http://n8n:5678/webhook/news_analizer`; сценарий n8n вызывает
-`POST http://python_test:8100/news/analyze` (с JWT), который пишет запись в
-`market_news_ml_dataset`.
+Цепочка анализа новостей: фронтенд Vue (`frontend/`, контейнер `frontend`) или
+другой клиент отправляет JSON `{source, title, content, ts}` на вебхук n8n
+`http://n8n:5678/webhook/news_analizer`; сценарий n8n может вызвать
+`POST http://python_test:8100/news/analyze` (с JWT) — тот вернёт этот же JSON
+и перешлёт его на вебхук (URL берётся из env `N8N_BASE_URL` +
+`N8N_NEWS_WEBHOOK_PATH`, см. `python_test/.env`). Сохранением записей в
+`market_news_ml_dataset` (DDL: `init_db/02_init_market_news_ml.sql`) занимается
+сам сценарий n8n.

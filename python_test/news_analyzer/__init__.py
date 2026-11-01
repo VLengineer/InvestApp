@@ -5,12 +5,22 @@
 файлом в app/api/routes/, который импортирует сервисы из этого пакета.
 
 Структура пакета:
-    schemas.py    — pydantic-модели (контракт API);
-    repository.py — работа с таблицей market_news_ml_dataset (asyncpg);
-    service.py    — бизнес-логика (валидация ts, сохранение записи).
+    schemas.py  — pydantic-модели (контракт API);
+    client.py   — HTTP-клиент вебхука n8n (URL берётся из env N8N_BASE_URL + N8N_NEWS_WEBHOOK_PATH);
+    service.py  — бизнес-логика (пересылка новости на n8n/news_analizer).
+
+ВАЖНО: микросервис сам НЕ пишет в БД — сохранением в market_news_ml_dataset
+занимается сценарий n8n, вызванный вебхуком.
 """
 
+from news_analyzer.client import N8nForwardError, N8nWebhookClient
 from news_analyzer.schemas import NewsAnalyzeRequest, NewsAnalyzeResponse
 from news_analyzer.service import NewsAnalyzerService
 
-__all__ = ["NewsAnalyzeRequest", "NewsAnalyzeResponse", "NewsAnalyzerService"]
+__all__ = [
+    "N8nForwardError",
+    "N8nWebhookClient",
+    "NewsAnalyzeRequest",
+    "NewsAnalyzeResponse",
+    "NewsAnalyzerService",
+]

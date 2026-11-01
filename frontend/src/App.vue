@@ -10,9 +10,9 @@ const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL
     <header class="page-header">
       <h1>Анализатор рыночных новостей</h1>
       <p class="subtitle">
-        Заполните карточку новости и нажмите «Анализировать» — данные уйдут
-        в микросервис через n8n-вебхук и сохранятся в
-        <code>market_news_ml_dataset</code>.
+        Заполните карточку новости и нажмите «Анализировать» — JSON уйдёт
+        на вебхук n8n, а сценарий n8n сохранит его в
+        <code>market_news_ml_dataset</code> и проанализирует.
       </p>
       <p class="webhook">URL вебхука: <code>{{ webhookUrl }}</code></p>
     </header>

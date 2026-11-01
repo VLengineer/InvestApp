@@ -95,8 +95,8 @@ services:
     networks:
       - app_net
 
-  # Vue-фронтенд «Анализатор новостей»: форма отправляет POST на
-  # http://n8n:5678/webhook/news_analizer (совпадение имён — не опечатка).
+  # Vue-фронтенд «Анализатор новостей»: форма отправляет POST на вебхук n8n,
+  # путь к нему задаётся переменной N8N_WEBHOOK_URL в корневом .env.
   frontend:
     build:
       context: ./frontend

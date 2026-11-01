@@ -1,15 +1,14 @@
 """Контракт API микросервиса news_analyzer (схемы запросов/ответов).
 
 Формат тела совпадает с тем, что Vue-фронтенд отправляет на вебхук n8n
-``POST http://n8n:5678/webhook/news_analizer`` и что бэкенд сохраняет
-в таблицу ``market_news_ml_dataset``.
+``POST http://n8n:5678/webhook/news_analizer``. Микросервис принимает этот JSON
+и пересылает его на вебхук n8n (URL — из env ``N8N_BASE_URL`` + ``N8N_NEWS_WEBHOOK_PATH``); в БД пишет сценарий n8n.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
-from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,12 +25,10 @@ class NewsAnalyzeRequest(BaseModel):
 
 
 class NewsAnalyzeResponse(BaseModel):
-    """Ответ бэкенда: запись сохранена в market_news_ml_dataset."""
+    """Ответ микросервиса: новость переслана на вебхук n8n, приложен его ответ."""
 
-    id: UUID
-    source: str
-    title: str
-    ts: datetime
-    saved: bool = True
-    table: str = "market_news_ml_dataset"
-    detail: dict[str, Any] = Field(default_factory=dict)
+    forwarded: bool = True
+    webhook_url: str = Field(description="URL вебхука, куда отправлена новость (env N8N_BASE_URL + N8N_NEWS_WEBHOOK_PATH)")
+    status_code: int = Field(description="HTTP-код, которым ответил n8n")
+    news: dict[str, Any] = Field(default_factory=dict, description="Отправленный JSON (source/title/content/ts)")
+    n8n_response: Any = Field(default=None, description="Ответ вебхука n8n (JSON или {raw: текст})")

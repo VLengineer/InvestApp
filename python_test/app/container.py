@@ -16,7 +16,7 @@ from app.repositories.document_repository import DocumentRepository
 from app.services.indexing_service import IndexingService
 from app.services.kb_reader import KnowledgeBaseReader
 from app.workers.task_registry import TaskRegistry
-from news_analyzer.repository import NewsRepository
+from news_analyzer.client import N8nWebhookClient
 from news_analyzer.service import NewsAnalyzerService
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ class Container:
     registry: TaskRegistry
     indexing: IndexingService
     # --- микросервис news_analyzer (код: python_test/news_analyzer/) ---
-    news_repository: NewsRepository
+    n8n_client: N8nWebhookClient
     news_analyzer: NewsAnalyzerService
     _closed: bool = field(default=False, repr=False)
 
@@ -69,18 +69,18 @@ class Container:
         registry = TaskRegistry()
         repository = _LazyRepository(database, model=settings.embedding_model)
         indexing = IndexingService(settings, reader, embedder, repository, registry)
-        # Микросервис анализа новостей: репозиторий берёт живой пул у Database
-        news_repository = NewsRepository(database)
-        news_analyzer = NewsAnalyzerService(news_repository)
+        # Микросервис анализа новостей: НЕ пишет в БД — пересылает новость
+        # на вебхук n8n (env: N8N_BASE_URL + N8N_NEWS_WEBHOOK_PATH).
+        n8n_client = N8nWebhookClient(settings)
+        news_analyzer = NewsAnalyzerService(n8n_client)
         return cls(
             settings, database, embedder, reader, repository, registry, indexing,
-            news_repository, news_analyzer,
+            n8n_client, news_analyzer,
         )
 
     async def startup(self) -> None:
         await self.database.connect()
         await self.database.ensure_schema()
-        await self.news_repository.ensure_schema()
         logger.info("Схема БД проверена; эмбеддинг-модель: %s", self.settings.embedding_model)
         # Явно проверяем Ollama при старте и пишем результат в лог контейнера —
         # чтобы «ollama не вызывается / модель не загружена» было видно сразу,
@@ -99,4 +99,5 @@ class Container:
         self._closed = True
         await self.registry.shutdown()
         await self.embedder.aclose()
+        await self.n8n_client.aclose()
         await self.database.close()
