@@ -48,6 +48,30 @@ class TokenResponse(BaseModel):
     scopes: list[str]
 
 
+class VerifyTokenRequest(BaseModel):
+    """Запрос на диагностику токена (доступен только держателю admin-ключа)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(
+        min_length=10,
+        max_length=8192,
+        description="JWT целиком (без префикса 'Bearer ') — тот, что не принимает Swagger",
+    )
+
+
+class VerifyTokenResponse(BaseModel):
+    valid: bool = Field(description="true — сервер примет этот токен")
+    header: dict[str, Any] = Field(default_factory=dict, description="JWT header (alg, typ)")
+    payload: dict[str, Any] = Field(default_factory=dict, description="claims токена (без проверки подписи)")
+    expected_iss: str | None = Field(default=None, description="значение JWT_ISSUER сервера (null — не проверяется)")
+    expected_aud: str | None = Field(default=None, description="значение JWT_AUDIENCE сервера (null — не проверяется)")
+    scopes: list[str] = Field(default_factory=list, description="распознанные scopes токена")
+    reasons: list[str] = Field(
+        default_factory=list, description="причины отказа (пусто, если valid=true); секреты сюда не попадают"
+    )
+
+
 class IndexOptions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

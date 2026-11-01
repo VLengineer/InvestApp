@@ -82,7 +82,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "`ttl_seconds`: 0/null — без срока действия) либо сгенерировать вне сервиса "
             "скриптом `get_token.py` — тоже без `exp`.\n\n"
             "**Как пользоваться Swagger:** нажмите `Authorize` и введите токен "
-            "или используйте машинный ключ в поле API_KEY_BEARER (вставляется как X-API-Key)."
+            "(без префикса «Bearer ») либо используйте машинный ключ в поле API_KEY_BEARER (вставляется как X-API-Key).\n\n"
+            "**Получили 401?** Причина скрыта намеренно — посмотрите её в логе сервиса "
+            "(`docker compose logs python_test`) или вызовите `POST /auth/verify-token` с "
+            "`X-API-Key: <ADMIN_API_KEY>` и тем же токеном в теле: эндпоинт вернёт claims "
+            "токена, ожидаемые `iss`/`aud` и список конкретных причин отказа. Токены, выданные "
+            "`POST /auth/token`, всегда проходят проверку; токены из `get_token.py` обязаны "
+            "содержать `iss` и `aud`, равные `JWT_ISSUER`/`JWT_AUDIENCE` сервера."
         ),
         docs_url=None if settings.is_production else "/docs",
         redoc_url=None if settings.is_production else "/redoc",

@@ -23,6 +23,7 @@ from fastapi import Depends, Header, HTTPException, status
 from jwt import PyJWTError
 
 from app.core.config import Settings, get_settings
+from app.core.diagnostics import log_token_rejection
 
 ALGORITHM_WHITELIST = ["HS256"]  # явный whitelist: исключаем alg=none / подмену алгоритма
 
@@ -70,6 +71,7 @@ def decode_token(token: str, settings: Settings) -> dict:
             },
         )
     except PyJWTError as exc:  # единое сообщение — не раскрываем причину атакующему
+        log_token_rejection(exc, token, settings)  # а вот в лог причина попадает
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Недействительный или просроченный токен доступа",
@@ -150,14 +152,22 @@ def issue_token(
     scopes: list[str],
     settings: Settings,
     ttl_seconds: int | None = None,
+    issuer: str | None = None,
+    audience: str | None = None,
 ) -> str:
-    """Выпускает JWT. ``ttl_seconds=None`` (или ``0``) — токен БЕЗ ``exp``, т.е. бессрочный."""
+    """Выпускает JWT. ``ttl_seconds=None`` (или ``0``) — токен БЕЗ ``exp``, т.е. бессрочный.
+
+    ``issuer``/``audience`` позволяют выпустить токен с ДРУГИМИ значениями iss/aud
+    (например, чтобы через ``POST /auth/token`` получить токен для сервиса с
+    отличными ``JWT_ISSUER``/``JWT_AUDIENCE``). По умолчанию берутся значения
+    сервера — такие токены всегда проходят проверку :func:`decode_token`.
+    """
     now = datetime.now(timezone.utc)
     payload = {
         "sub": subject,
         "scope": " ".join(scopes),
-        "iss": settings.jwt_issuer or settings.app_name,
-        "aud": settings.jwt_audience or settings.app_name,
+        "iss": issuer if issuer is not None else (settings.jwt_issuer or settings.app_name),
+        "aud": audience if audience is not None else (settings.jwt_audience or settings.app_name),
         "iat": now,
     }
     if ttl_seconds:

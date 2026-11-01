@@ -11,13 +11,14 @@
 from __future__ import annotations
 
 import secrets
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from app.core.config import get_settings
-from app.core.security import ALL_SCOPES, issue_token
-from app.schemas.api_schemas import TokenRequest, TokenResponse
+from app.core.diagnostics import explain_token_failure, peek_token
+from app.core.security import ALL_SCOPES, _extract_scopes, issue_token
+from app.schemas.api_schemas import TokenRequest, TokenResponse, VerifyTokenRequest, VerifyTokenResponse
 
 
 def require_admin_key(
@@ -58,3 +59,40 @@ async def create_token(body: TokenRequest) -> TokenResponse:
     ttl = body.ttl_seconds if body.ttl_seconds is not None else settings.access_token_ttl_s
     token = issue_token(subject=body.subject, scopes=list(body.scopes), settings=settings, ttl_seconds=ttl or None)
     return TokenResponse(access_token=token, expires_in=ttl or None, scopes=list(body.scopes))
+
+
+@router.post(
+    "/verify-token",
+    response_model=VerifyTokenResponse,
+    summary="Диагностика: почему сервер отвергает конкретный JWT",
+    description=(
+        "Полезно, когда Swagger пишет «Недействительный или просроченный токен доступа», "
+        "а причину не видно (в 401 она намеренно не раскрывается).\n\n"
+        "Вставьте тот же токен, который подставили в поле `Authorize` — эндпоинт покажет "
+        "`header`/`payload` токена, ожидаемые сервером `iss`/`aud` и **список конкретных причин** отказа:\n\n"
+        "* подпись не совпадает → токен выпущен с другим `JWT_SECRET_KEY`;\n"
+        "* нет claim `iss`/`aud` → у сервера заданы `JWT_ISSUER`/`JWT_AUDIENCE`, добавьте их при выпуске;\n"
+        "* нет `iat`/`sub` или просрочен `exp`.\n\n"
+        "Секреты и API-ключи в ответе не возвращаются. Доступ только с `X-API-Key: <ADMIN_API_KEY>`."
+    ),
+)
+async def verify_token(body: VerifyTokenRequest) -> VerifyTokenResponse:
+    """Подробный разбор входящего токена (для отладки авторизации)."""
+    settings = get_settings()
+    token = body.token.strip().removeprefix("Bearer ").removeprefix("bearer ").strip()
+    header: dict[str, Any] = {}
+    payload: dict[str, Any] = {}
+    try:
+        header, payload = peek_token(token)
+    except ValueError:
+        pass  # причина будет в reasons
+    reasons = explain_token_failure(token, settings)
+    return VerifyTokenResponse(
+        valid=not reasons,
+        header=header,
+        payload=payload,
+        expected_iss=settings.jwt_issuer,
+        expected_aud=settings.jwt_audience,
+        scopes=[s.value for s in _extract_scopes(payload)] if payload else [],
+        reasons=reasons,
+    )
