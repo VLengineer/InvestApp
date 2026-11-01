@@ -75,19 +75,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title="RAG Knowledge Base Indexer",
         version=settings.app_version,
         description=(
-            "Индексация «общих» JSON из knowledge_base через Ollama (nomic-embed-text) "
-            "с сохранением документов и векторов в PostgreSQL+pgvector. Доступ по JWT.\n\n"
-            "**Токены бессрочные**: claim `exp` не обязателен (env JWT_REQUIRE_EXP=false). "
-            "Токен можно получить через `POST /auth/token` (admin-ключ в X-API-Key, "
-            "`ttl_seconds`: 0/null — без срока действия) либо сгенерировать вне сервиса "
-            "скриптом `get_token.py` — тоже без `exp`.\n\n"
-            "**Как пользоваться Swagger:** нажмите `Authorize` и введите токен "
-            "или используйте машинный ключ в поле API_KEY_BEARER (вставляется как X-API-Key)."
+            "Индексация «общих» JSON из knowledge_base через Ollama с сохранением "
+            "документов и векторов в PostgreSQL+pgvector. Доступ по одному JWT-токену.\n\n"
+            "**Схема простая**: админ-ключей и X-API-Key больше нет. Один бессрочный токен "
+            "(без claim `exp`) подходит для всех эндпоинтов и всех клиентов (Swagger, n8n). "
+            "Сгенерировать его: `python get_token.py --secret \"$JWT_SECRET_KEY\"`.\n\n"
+            "**Как пользоваться Swagger:** нажмите `Authorize` и вставьте токен "
+            "(только сам токен, без слова `Bearer`)."
         ),
         docs_url=None if settings.is_production else "/docs",
         redoc_url=None if settings.is_production else "/redoc",
         openapi_url=None if settings.is_production else "/openapi.json",
-        # схемы security описаны вручную в _custom_openapi (JWT Bearer + X-API-Key)
+        # схема security описана вручную в _custom_openapi (только JWT Bearer)
     )
     app.state.settings = settings
     app.state.container: Container | None = None
@@ -131,7 +130,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # ------------------------- Swagger «как положено» ------------------------
     def _custom_openapi() -> dict[str, Any]:
-        """OpenAPI со стандартными схемами security: JWT Bearer и X-API-Key."""
+        """OpenAPI со стандартной схемой security: только JWT Bearer (один токен на всё)."""
         if app.openapi_schema:
             return app.openapi_schema
         schema = get_openapi(
@@ -145,26 +144,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "type": "http",
                 "scheme": "bearer",
                 "bearerFormat": "JWT",
-                "description": "JWT из POST /auth/token или get_token.py; бессрочный (без exp) — Authorization: Bearer <token>",
-            },
-            "ApiKeyHeader": {
-                "type": "apiKey",
-                "in": "header",
-                "name": "X-API-Key",
-                "description": "Машинный ключ из env API_KEYS (для n8n и внутренних сервисов)",
+                "description": (
+                    "Единый бессрочный JWT (HS256). Сгенерировать: "
+                    "python get_token.py --secret \"<JWT_SECRET_KEY>\". "
+                    "Вставлять в Swagger — только сам токен, без 'Bearer '."
+                ),
             },
         }
-        # /auth/token — только admin-ключ; остальные защищённые эндпоинты — JWT или API-ключ
-        auth_paths = [p for p in schema.get("paths", {}) if p.startswith("/auth/")]
+        # Все защищённые эндпоинты — один канал: Bearer JWT; /live и /ready — открытые
         open_paths = {"/live", "/ready"}
         for path, item in schema.get("paths", {}).items():
             if path in open_paths:
                 continue
             for operation in item.values():
                 if isinstance(operation, dict):
-                    operation["security"] = (
-                        [{"ApiKeyHeader": []}] if path in auth_paths else [{"BearerJWT": []}, {"ApiKeyHeader": []}]
-                    )
+                    operation["security"] = [{"BearerJWT": []}]
         schema["x-error-format"] = {"code": "string", "message": "string", "details": {}}
         app.openapi_schema = schema
         return schema

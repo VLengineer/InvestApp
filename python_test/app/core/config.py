@@ -46,20 +46,29 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO")
 
     # ------------------------------- Безопасность ---------------------------
-    # JWT-секрет генерируется ОПЕРАТОРОМ заранее, например:
-    #   python -c "import secrets; print(secrets.token_urlsafe(48))"
+    # Единый способ доступа: один JWT (HS256) в заголовке Authorization: Bearer.
+    # Admin-ключи и X-API-Key упразднены. Токен по умолчанию БЕССРОЧНЫЙ (без exp).
+    # Секрет генерируется ОПЕРАТОРОМ заранее, например:
+    #   python secret.py   (или python -c "import secrets; print(secrets.token_urlsafe(48))")
     jwt_secret_key: str = Field(min_length=32, description="HS256 секрет для проверки JWT (env: JWT_SECRET_KEY)")
     jwt_algorithm: str = "HS256"
-    jwt_issuer: str | None = Field(default=None, description="Ожидаемый claim iss (env: JWT_ISSUER)")
-    jwt_audience: str | None = Field(default=None, description="Ожидаемый claim aud (env: JWT_AUDIENCE)")
+    # По умолчанию iss/aud НЕ проверяются — чтобы любой корректно подписанный
+    # токен принимался (меньше причин для «token is invalid» в Swagger).
+    jwt_issuer: str | None = Field(default=None, description="Ожидаемый claim iss, если задан (env: JWT_ISSUER)")
+    jwt_audience: str | None = Field(default=None, description="Ожидаемый claim aud, если задан (env: JWT_AUDIENCE)")
+
     # Требовать ли наличие exp в входящем токене. false (по умолчанию) — допускаются
     # бессрочные токены без exp; если exp есть, он всё равно проверяется.
     jwt_require_exp: bool = Field(default=False, description="Обязателен ли claim exp (env: JWT_REQUIRE_EXP)")
     jwt_leeway_s: int = Field(default=60, ge=0, le=3600, description="Допуск при проверке exp/iat, сек (env: JWT_LEEWAY_S)")
-    # 0 (или пусто) = выдавать токены без exp (бессрочные).
-    access_token_ttl_s: int = Field(default=0, ge=0, le=86_400, description="TTL выдаваемого JWT, сек; 0 — бессрочный (env: ACCESS_TOKEN_TTL_S)")
-    api_keys: list[str] = Field(default_factory=list, description="Ключи X-API-Key для машинных вызовов (env: API_KEYS)")
-    admin_api_key: str | None = Field(default=None, description="Ключ для POST /auth/token (env: ADMIN_API_KEY)")
+
+    @field_validator("jwt_issuer", "jwt_audience", mode="before")
+    @classmethod
+    def _empty_str_to_none(cls, v: object) -> object:
+        """Пустая строка в env (JWT_ISSUER=) = «не проверять», как и None."""
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
     # ------------------------------ Knowledge base --------------------------
     kb_root: Path = Path("/app/knowledge_base")
@@ -95,7 +104,7 @@ class Settings(BaseSettings):
     def _upper_log_level(cls, v: str) -> str:
         return v.upper()
 
-    @field_validator("api_keys", "common_dir_names", mode="before")
+    @field_validator("common_dir_names", mode="before")
     @classmethod
     def _split_comma_lists(cls, v: object) -> object:
         """Списки из env: либо JSON ("["a","b"]"), либо строка через запятую ("a,b")."""
