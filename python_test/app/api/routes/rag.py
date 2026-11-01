@@ -53,7 +53,9 @@ async def start_indexing(
         message=(
             f"План: файлов={summary['files_found']}, концептов всего={summary['concepts_total']}, "
             f"уникальных={summary['unique_concepts']}, уже проиндексировано={summary['already_indexed']}, "
-            f"к обработке={summary['to_embed']}"
+            f"к обработке={summary['to_embed']}. "
+            "Каждый шаг (вызов Ollama, ответ, запись в БД) логируется: docker compose logs -f python_test; "
+            "прогресс задачи — GET /index/tasks/{task_id}, содержимое БД — GET /stats."
         ),
     )
 

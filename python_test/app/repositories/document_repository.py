@@ -48,6 +48,10 @@ class DocumentRepository:
         if len(embedding) != 768:  # проверка до отправки в БД
             raise DatabaseError(f"Некорректная размерность вектора: {len(embedding)}")
 
+        logger.debug(
+            "БД INSERT kb_documents (source=%s, concept_id=%s, hash=%s) + kb_embeddings (model=%s)",
+            concept.source_path, concept.concept_id, concept.short_hash, self._model,
+        )
         async with self._pool.acquire() as conn, conn.transaction():
             doc_row = await conn.fetchrow(
                 """
