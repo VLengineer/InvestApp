@@ -54,9 +54,9 @@ async function analyze() {
     result.value = data
   } catch (e) {
     error.value = `Не удалось вызвать вебхук ${props.webhookUrl}: ${e.message}. ` +
-      'Если frontend открыт в браузере по localhost/IP хоста, а URL указывает на http://n8n:5678 — ' +
-      'браузер не знает это docker-имя: вызов должен идти через прокси /n8n-api (vite.config.js) ' +
-      'или на http://localhost:5678. Для /webhook-test сначала нажмите «Execute workflow» в n8n, ' +
+      'ERR_NAME_NOT_RESOLVED означает, что браузер пытался открыть docker-имя (n8n) — ' +
+      'обновите страницу: вызов должен идти через /n8n-api/… (прокси Vite). ' +
+      'Для /webhook-test сначала нажмите «Execute workflow» в n8n, ' +
       'для /webhook включите переключатель Active.'
   } finally {
     loading.value = false

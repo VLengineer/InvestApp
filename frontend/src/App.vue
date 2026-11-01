@@ -2,24 +2,42 @@
 import { computed, ref } from 'vue'
 import NewsAnalyzerForm from './components/NewsAnalyzerForm.vue'
 
-// Базовый URL контейнера n8n во внутренней docker-сети app_net.
-// Берётся из VITE_N8N_BASE_URL (см. docker-compose.yml); по умолчанию —
-// http://n8n:5678/, т.к. внутри сети app_net 127.0.0.1 указывает не на n8n.
+// ЗАЧЕМ ПРОКСИ: VITE_* переменные «впекаются» в JS-бандл на этапе сборки и
+// используются БРАУЗЕРОМ. Docker-имя «n8n» браузер не резолвит (оно живёт
+// только внутри docker-сети app_net) → ERR_NAME_NOT_RESOLVED. Поэтому вызовы
+// вебхуков из браузера ВСЕГДА идут через относительный путь /n8n-api/…:
+// dev-сервер Vite (работающий внутри контейнера frontend, где имя «n8n»
+// разрешается) проксирует их на контейнер n8n (см. vite.config.js и
+// N8N_PROXY_TARGET в docker-compose.yml). Так фронт работает из любого
+// браузера — хоть localhost, хоть IP хоста, хоть удалённая машина.
+const PROXY_BASE = '/n8n-api/'
+
+// Прямой base-URL n8n (для диагностики/редких случаев, когда браузер сам
+// видит n8n, например n8n запущен на хосте без docker).
 const n8nBase = (import.meta.env.VITE_N8N_BASE_URL || 'http://n8n:5678/').replace(/\/+$/, '') + '/'
 
-// Если страница открыта в браузере НЕ на том же хосте, где живёт n8n по base-URL
-// (например, frontend доступен по localhost:5173, а base — http://n8n:5678 —
-// браузер разрешить не может), идём через прокси dev-сервера Vite «/n8n-api»
-// (см. vite.config.js) — он работает из любого браузера.
+// Браузер не может разрешить docker-имена вида «n8n» — это одно слово без точек.
+function isUnresolvableInBrowser(hostname) {
+  return !hostname.includes('.') && hostname !== 'localhost'
+}
+
+// Режим выбора URL: 'auto' — как описано выше (docker-имя → прокси),
+// 'proxy' — всегда через /n8n-api/, 'direct' — всегда напрямую на base.
+const urlModePref = import.meta.env.VITE_N8N_URL_MODE || 'auto'
+
 function resolveBaseUrl(base) {
   if (typeof window === 'undefined') return base
+  if (urlModePref === 'proxy') return PROXY_BASE
+  if (urlModePref === 'direct') return base
   try {
     const b = new URL(base, window.location.href)
+    // docker-имя или чужой хост → через прокси Vite
+    if (isUnresolvableInBrowser(b.hostname)) return PROXY_BASE
     const here = window.location.hostname
     const sameHost = b.hostname === here ||
       (b.hostname === 'localhost' && ['127.0.0.1', '::1', '[::1]'].includes(here)) ||
       (['127.0.0.1', '::1', '[::1]'].includes(b.hostname) && here === 'localhost')
-    if (!sameHost) return '/n8n-api/'
+    if (!sameHost) return PROXY_BASE
   } catch {
     /* оставляем base как есть */
   }
