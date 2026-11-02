@@ -115,7 +115,7 @@ class CompanyProfileRepository:
         async with self._database.pool.acquire() as conn:
             rows = await conn.fetch(
                 """
-                SELECT company_name, ticker, figi, description,
+                SELECT company_name, ticker, figi, description, business_model,
                        1 - (embedding <=> $1::vector) AS similarity
                 FROM company_profiles
                 ORDER BY embedding <=> $1::vector
