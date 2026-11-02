@@ -39,6 +39,39 @@ def _as_text(value: Any) -> str | None:
 # --------------------------------------------------------------------------- #
 # 1. Чтение JSON
 # --------------------------------------------------------------------------- #
+def _candidate_paths(settings: Settings, path: str | Path | None) -> list[Path]:
+    """Список путей-кандидатов для cp.json (первый существующий используется).
+
+    Порядок: явный path/env -> надёжный путь из Settings -> дефолт образа
+    (/app/company_profiles/cp.json) -> DEFAULT_CP_JSON. Относительные пути
+    считаются от корня сервиса, а не от CWD процесса.
+    """
+    candidates: list[Path] = []
+
+    def add(p: Path | None) -> None:
+        if p is None:
+            return
+        p = Path(p)
+        if not p.is_absolute():
+            p = Path(__file__).resolve().parents[2] / p
+        if p not in candidates:
+            candidates.append(p)
+
+    add(Path(path)) if path else None
+    add(settings.company_profiles_json_path)
+    add(Path("/app/company_profiles/cp.json"))
+    add(DEFAULT_CP_JSON)
+    return candidates
+
+
+def resolve_cp_json(settings: Settings, path: str | Path | None = None) -> Path:
+    """Вернуть первый реально существующий кандидат; иначе — основной (для 404)."""
+    for p in _candidate_paths(settings, path):
+        if p.is_file():
+            return p
+    return _candidate_paths(settings, path)[0]
+
+
 def load_company_profiles(settings: Settings, path: str | Path | None = None) -> list[dict[str, Any]]:
     """Прочитать профили из cp.json.
 
@@ -50,19 +83,23 @@ def load_company_profiles(settings: Settings, path: str | Path | None = None) ->
     (см. ``_resolve_company_profiles_json`` в app/core/config.py): относительные
     пути считаются от корня сервиса, а не от CWD процесса, поэтому файл
     находится одинаково и в Docker (``/app/company_profiles/cp.json``),
-    и при локальном запуске из любой папки.
+    и при локальном запуске из любой папки. Дополнительно сервис пробует
+    несколько канонических путей (см. ``_candidate_paths``), чтобы «cp.json not
+    found» не возникал из-за устаревшего/хостового значения env или запуска
+    непересобранным образом.
     """
-    resolved = Path(path) if path else settings.company_profiles_json_path
-    if not resolved.is_absolute():
-        resolved = Path(__file__).resolve().parents[2] / resolved
+    candidates = _candidate_paths(settings, path)
+    resolved = next((p for p in candidates if p.is_file()), candidates[0])
     try:
         with open(resolved, encoding="utf-8") as f:
             data = json.load(f)
     except FileNotFoundError as exc:
+        tried = "; ".join(str(p) for p in candidates)
         raise FileNotFoundError(
-            f"{resolved} (проверьте COMPANY_PROFILES_JSON и наличие "
-            "cp.json в образе; после изменения файла пересоберите образ: "
-            "docker compose build --no-cache python_test)"
+            f"{resolved}. Испробованные пути: {tried}. Проверьте, что файл "
+            "копируется в образ (Dockerfile: COPY company_profiles ./company_profiles) "
+            "и что образ пересобран после его добавления/изменения: "
+            "docker compose build --no-cache python_test && docker compose up -d python_test"
         ) from exc
     if isinstance(data, dict):  # допускаем {"profiles": [...]}
         data = data.get("profiles") or data.get("companies") or list(data.values())
