@@ -38,6 +38,7 @@ from app.schemas.indicators import (
     IndicatorsRequest,
     IndicatorsResponse,
     IndicatorRow,
+    LastCandleRSI,
     MomentumInfo,
     TrendInfo,
     VolatilityRegime,
@@ -147,6 +148,13 @@ class IndicatorsService:
             len(rows), valid_candles, timeframe, elapsed_ms,
         )
 
+        # RSI(14) последней свечи входного набора (после авто-сортировки по времени)
+        last_row = rows[-1]
+        last_candle_rsi = LastCandleRSI(
+            timestamp=last_row.timestamp,
+            rsi_14=last_row.rsi_14,
+        )
+
         return IndicatorsResponse(
             indicators=rows,
             analytics=analytics,
@@ -157,6 +165,7 @@ class IndicatorsService:
                 timeframe_minutes=timeframe,
                 calculation_time_ms=elapsed_ms,
             ),
+            last_candle_rsi=last_candle_rsi,
         )
 
     # ======================== технические индикаторы =========================
@@ -336,6 +345,41 @@ class IndicatorsService:
             body = abs(c - o)
             ts = df["timestamp"].iloc[i]
 
+            upper_wick = h - max(o, c)
+            lower_wick = min(o, c) - l
+
+            # --- Engulfing: тело текущей свечи полностью перекрывает тело previous ---
+            # (проверяем первым: паттерн определяется двухсвечной конфигурацией
+            #  и не должен «маскироваться» doji/hammer-классификацией текущей свечи)
+            engulfed = False
+            if i > 0:
+                prev_o = df["open"].iloc[i - 1]
+                prev_c = df["close"].iloc[i - 1]
+                prev_body = abs(prev_c - prev_o)
+                if body > prev_body and prev_body > 0:
+                    if c > o and o <= prev_c and c >= prev_o and prev_c < prev_o:
+                        # бычье поглощение: предыдущая медвежья, текущая бычья «съедает»
+                        confidence = min(1.0, 0.5 + 0.5 * (body / prev_body - 1.0))
+                        patterns.append(
+                            CandlePattern(
+                                timestamp=ts, pattern="bullish_engulfing",
+                                confidence=_round(max(confidence, 0.5), 2) or 0.0,
+                            )
+                        )
+                        engulfed = True
+                    elif c < o and o >= prev_c and c <= prev_o and prev_c > prev_o:
+                        confidence = min(1.0, 0.5 + 0.5 * (body / prev_body - 1.0))
+                        patterns.append(
+                            CandlePattern(
+                                timestamp=ts, pattern="bearish_engulfing",
+                                confidence=_round(max(confidence, 0.5), 2) or 0.0,
+                            )
+                        )
+                        engulfed = True
+
+            if engulfed:
+                continue  # поглощение не совмещаем с одиночными паттернами той же свечи
+
             # --- Doji: тело пренебрежимо мало относительно диапазона (ТЗ: <0.1) ---
             if rng > 0 and body / rng < 0.1:
                 confidence = min(1.0, (1.0 - body / rng) * 0.9 + 0.1)
@@ -345,13 +389,12 @@ class IndicatorsService:
                         confidence=_round(confidence, 2) or 0.0,
                     )
                 )
-                continue  # doji не совмещаем с прочными паттернами той же свечи
-
-            upper_wick = h - max(o, c)
-            lower_wick = min(o, c) - l
+                continue  # doji не совмещаем с прочими паттернами той же свечи
 
             # --- Hammer / Inverted hammer: длинная тень при малом теле ---
-            if rng > 0 and body / rng <= 0.35:
+            # Классические критерии: тело в верхней/нижней части диапазона,
+            # противоположная тень короче тела, длина тени >= 2*тело.
+            if rng > 0 and body <= 0.35 * rng:
                 if lower_wick >= 2.0 * body and upper_wick <= body:
                     ratio = lower_wick / rng
                     confidence = min(1.0, 0.5 + ratio)
@@ -372,30 +415,17 @@ class IndicatorsService:
                         )
                     )
                     continue
-
-            # --- Engulfing: тело текущей свечи полностью перекрывает тело previous ---
-            if i > 0:
-                prev_o = df["open"].iloc[i - 1]
-                prev_c = df["close"].iloc[i - 1]
-                prev_body = abs(prev_c - prev_o)
-                if body > prev_body and prev_body > 0:
-                    if c > o and o <= prev_c and c >= prev_o and prev_c < prev_o:
-                        # бычье поглощение: предыдущая медвежья, текущая бычья «съедает»
-                        confidence = min(1.0, 0.5 + 0.5 * (body / prev_body - 1.0))
-                        patterns.append(
-                            CandlePattern(
-                                timestamp=ts, pattern="bullish_engulfing",
-                                confidence=_round(max(confidence, 0.5), 2) or 0.0,
-                            )
+                # симметричные длинные тени (малое тело): относим к doji (ТЗ п.2.3.4:
+                # abs(close-open)/(high-low) < 0.1) — иначе паттерн не классифицируется
+                if body / rng < 0.1:
+                    confidence = min(1.0, (1.0 - body / rng) * 0.9 + 0.1)
+                    patterns.append(
+                        CandlePattern(
+                            timestamp=ts, pattern="doji",
+                            confidence=_round(confidence, 2) or 0.0,
                         )
-                    elif c < o and o >= prev_c and c <= prev_o and prev_c > prev_o:
-                        confidence = min(1.0, 0.5 + 0.5 * (body / prev_body - 1.0))
-                        patterns.append(
-                            CandlePattern(
-                                timestamp=ts, pattern="bearish_engulfing",
-                                confidence=_round(max(confidence, 0.5), 2) or 0.0,
-                            )
-                        )
+                    )
+                    continue
         return patterns
 
     # 2.3.5 режим волатильности --------------------------------------------------

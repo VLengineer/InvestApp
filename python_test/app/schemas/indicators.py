@@ -150,7 +150,17 @@ class IndicatorsMetadata(BaseModel):
     calculation_time_ms: int
 
 
+class LastCandleRSI(BaseModel):
+    """RSI(14) последней свечи из принятого JSON (удобное поле для быстрого чтения)."""
+
+    timestamp: str = Field(description="Время последней свечи (после авто-сортировки по времени)")
+    rsi_14: Optional[float] = Field(default=None, description="Значение RSI(14), null если не рассчитан")
+
+
 class IndicatorsResponse(BaseModel):
     indicators: list[IndicatorRow]
     analytics: AnalyticsResponse
     metadata: IndicatorsMetadata
+    last_candle_rsi: LastCandleRSI = Field(
+        description="RSI(14) для последней свечи входного набора данных"
+    )

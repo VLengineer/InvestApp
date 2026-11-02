@@ -160,8 +160,8 @@ def test_indicators_calculate_full_response(client: TestClient, auth: dict) -> N
     assert resp.status_code == 200, resp.text
     data = resp.json()
 
-    # структура ответа (ТЗ 2.1)
-    assert set(data) == {"indicators", "analytics", "metadata"}
+    # структура ответа (ТЗ 2.1 + поле last_candle_rsi)
+    assert set(data) == {"indicators", "analytics", "metadata", "last_candle_rsi"}
     assert set(data["analytics"]) == {
         "gaps", "volume_anomalies", "trends", "candle_patterns",
         "volatility_regime", "momentum",
@@ -182,6 +182,12 @@ def test_indicators_calculate_full_response(client: TestClient, auth: dict) -> N
     # последняя свеча: все 9 индикаторов рассчитаны и в разумных границах
     last = indicators[-1]
     assert 0.0 <= last["rsi_14"] <= 100.0
+
+    # RSI последней свечи продублирован в верхнеуровневом поле last_candle_rsi
+    lcr = data["last_candle_rsi"]
+    assert set(lcr) == {"timestamp", "rsi_14"}
+    assert lcr["timestamp"] == last["timestamp"]
+    assert lcr["rsi_14"] == last["rsi_14"]
     assert 0.0 <= last["stoch_k"] <= 100.0
     assert 0.0 <= last["stoch_d"] <= 100.0
     assert last["macd"] is not None and last["macd_signal"] is not None
