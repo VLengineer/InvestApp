@@ -11,3 +11,11 @@ asyncpg==0.30.0
 
 # --- Безопасность (JWT) ---
 PyJWT==2.10.1
+
+# --- Технические индикаторы / аналитика свечей (POST /indicators/calculate) ---
+pandas>=2.0.0
+pandas-ta>=0.3.14b
+numpy>=1.24.0
+setuptools  # pandas-ta использует pkg_resources (удалён из setuptools>=81 по умолчанию)
+
+
