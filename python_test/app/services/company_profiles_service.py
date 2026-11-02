@@ -22,6 +22,20 @@ logger = logging.getLogger(__name__)
 NEWS_TRIGGER_CATEGORIES = ("positive", "negative", "neutral")
 
 
+def _as_text(value: Any) -> str | None:
+    """Значение для колонок типа TEXT: списки склеиваем в читаемую строку.
+
+    В схеме init_db/03_init_company_profiles.sql колонка competitors — TEXT,
+    а в cp.json это список, поэтому JSON-дамп туда класть нельзя.
+    """
+    if value is None:
+        return None
+    if isinstance(value, list):
+        joined = _join_list(value)
+        return joined or None
+    return str(value)
+
+
 # --------------------------------------------------------------------------- #
 # 1. Чтение JSON
 # --------------------------------------------------------------------------- #
@@ -124,6 +138,14 @@ class CompanyProfilesService:
     async def ingest(self, json_path: str | None = None) -> dict[str, Any]:
         """Основной процесс: cp.json -> эмбеддинги -> таблица company_profiles."""
         profiles = load_company_profiles(self._settings, json_path)
+        return await self.ingest_from_profiles(profiles)
+
+    async def ingest_from_profiles(self, profiles: list[dict[str, Any]]) -> dict[str, Any]:
+        """Склейка -> эмбеддинг -> upsert для уже прочитанного списка профилей.
+
+        Вынесено отдельно, чтобы список профилей можно было передать напрямую
+        (и протестировать без файла/БД), а ingest() остался тонкой обёрткой.
+        """
         await self._repository.ensure_schema()
 
         inserted = updated = failed = 0
@@ -147,7 +169,7 @@ class CompanyProfilesService:
                 prof.get("market_position"),
                 prof.get("target_audience"),
                 prof.get("geography"),
-                json.dumps(prof.get("competitors"), ensure_ascii=False),
+                _as_text(prof.get("competitors")),
                 prof.get("regulatory_dependencies"),
                 json.dumps(prof.get("technology_stack"), ensure_ascii=False),
                 prof.get("historical_patterns"),
@@ -189,7 +211,9 @@ class CompanyProfilesService:
         return await self._repository.search_by_vector(vector_to_pg(embedding), limit)
 
 
-# Путь к cp.json по умолчанию (корень микросервиса python_test/company_profiles/cp.json)
+# Путь к cp.json по умолчанию (папка микросервиса python_test/company_profiles/).
+# DDL таблицы при этом берётся из init_db/03_init_company_profiles.sql — единый
+# источник схемы для docker-entrypoint-initdb.d и для ensure_schema() (см. app/db).
 DEFAULT_CP_JSON = (
     Path(__file__).resolve().parents[2] / "company_profiles" / "cp.json"
 )

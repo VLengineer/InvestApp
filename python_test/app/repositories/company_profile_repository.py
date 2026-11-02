@@ -22,7 +22,7 @@ UPSERT_SQL = """
 INSERT INTO company_profiles (
     company_name, ticker, figi,
     description, business_model, market_position, target_audience, geography,
-    competitors, regulatory_dependencies, technology_stack, historical_patterns,
+    competitors_text, regulatory_dependencies, technology_stack, historical_patterns,
     keywords_for_embedding, related_entities, news_triggers, key_products,
     key_figures, financial_metrics_of_interest, correlation_factors,
     embedding, embedding_model, embedding_dim, embed_text,
@@ -30,7 +30,9 @@ INSERT INTO company_profiles (
 ) VALUES (
     $1, $2, $3,
     $4, $5, $6, $7, $8,
-    $9::jsonb, $10, $11::jsonb, $12,
+    -- competitors_text — TEXT по схеме init_db/03_init_company_profiles.sql,
+    -- поэтому список конкурентов передаётся уже склеенной строкой, а не JSON
+    $9, $10, $11::jsonb, $12,
     $13::jsonb, $14::jsonb, $15::jsonb, $16::jsonb,
     $17::jsonb, $18::jsonb, $19::jsonb,
     $20::vector, $21, $22, $23,
@@ -44,7 +46,7 @@ ON CONFLICT (figi) DO UPDATE SET
     market_position             = EXCLUDED.market_position,
     target_audience             = EXCLUDED.target_audience,
     geography                   = EXCLUDED.geography,
-    competitors                 = EXCLUDED.competitors,
+    competitors_text            = EXCLUDED.competitors_text,
     regulatory_dependencies     = EXCLUDED.regulatory_dependencies,
     technology_stack            = EXCLUDED.technology_stack,
     historical_patterns         = EXCLUDED.historical_patterns,
