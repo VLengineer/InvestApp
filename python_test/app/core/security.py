@@ -22,7 +22,8 @@ from enum import StrEnum
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWTError
 
 from app.core.config import Settings, get_settings
@@ -122,28 +123,39 @@ def _extract_scopes(payload: dict) -> frozenset[Scope]:
     return scopes if scopes else frozenset(ALL_SCOPES)
 
 
+# security_scheme: HTTPBearer нужен, чтобы в Swagger UI (/docs) появилась
+# кнопка "Authorize" и поле для Bearer-токена; auto_error=False — сообщения
+# об ошибках формируем сами (единые для всего сервиса).
+bearer_scheme = HTTPBearer(auto_error=False, description="JWT из get_token.py")
+
+
 async def get_principal(
     settings: Annotated[Settings, Depends(get_settings)],
-    authorization: Annotated[str | None, Header(description="Bearer <JWT>")] = None,
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Depends(bearer_scheme)
+    ] = None,
 ) -> Principal:
     """Единственный канал доступа: JWT в заголовке Authorization."""
-    if not authorization:
+    authorization = credentials.credentials if credentials else None
+    if not credentials or not authorization:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=(
                 "Требуется заголовок 'Authorization: Bearer <token>'. "
-                "В Swagger: нажмите Authorize и вставьте токен (get_token.py)"
+                "В Swagger UI (/docs): нажмите кнопку 'Authorize' (вверху справа, "
+                "замок 🔒) и вставьте токен из get_token.py. Если кнопки нет — "
+                "обновите страницу с очисткой кэша (Ctrl+F5)."
             ),
             headers={"WWW-Authenticate": "Bearer"},
         )
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token.strip():
+    token = (credentials.scheme or "").strip()
+    if token.lower() != "bearer":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Ожидается заголовок 'Authorization: Bearer <token>'",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    payload = decode_token(token.strip(), settings)
+    payload = decode_token(authorization.strip(), settings)
     return Principal(
         subject=str(payload.get("sub")),
         scopes=_extract_scopes(payload),
