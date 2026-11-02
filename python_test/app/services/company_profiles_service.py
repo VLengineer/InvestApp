@@ -40,6 +40,12 @@ def _as_text(value: Any) -> str | None:
 # 1. Чтение JSON
 # --------------------------------------------------------------------------- #
 def load_company_profiles(settings: Settings, path: str | None = None) -> list[dict[str, Any]]:
+    """Прочитать профили из cp.json.
+
+    Путь фиксированный: ``company_profiles/cp.json`` рядом с кодом микросервиса
+    (в контейнере копируется в образ Dockerfile'ом); переопределяется только
+    через env ``COMPANY_PROFILES_JSON`` — из запроса путь указывать не нужно.
+    """
     path = path or str(settings.company_profiles_json_path)
     with open(path, encoding="utf-8") as f:
         data = json.load(f)

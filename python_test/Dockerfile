@@ -15,6 +15,9 @@ COPY app ./app
 # все такие папки копируются в образ одним блоком ниже.
 COPY news_analyzer ./news_analyzer
 COPY knowledge_base ./knowledge_base
+# Данные микросервиса company_profiles: cp.json (путь фиксирован в конфиге —
+# COMPANY_PROFILES_JSON / DEFAULT_CP_JSON, эндпоинт /ingest его не принимает).
+COPY company_profiles ./company_profiles
 
 EXPOSE 8100
 
