@@ -99,6 +99,7 @@ def test_build_embed_text_priority_and_content() -> None:
         "ticker": "SBER",
         "figi": "SBER",
         "description": "Крупнейший банк.",
+        "business_model": "Универсальный банк, розница и корпоративный бизнес.",
         "keywords_for_embedding": ["банк", "дивиденды"],
         "related_entities": [{"name": "Газпромбанк", "type": "competitor"}],
         "news_triggers": {"positive": ["дивиденды"], "negative": ["санкции"], "neutral": ["отчёт"]},
@@ -137,10 +138,11 @@ def test_cp_json_fields_match_table_columns() -> None:
 def test_upsert_sql_columns_match_ddl_and_service_values() -> None:
     insert_part, values_part = UPSERT_SQL.split("VALUES")
     cols = [c.strip() for c in re.search(r"\((.*?)\)", insert_part, re.S).group(1).split(",")]
+    # created_at/updated_at заполняются в SQL литералом now(), параметрами не идут
     business_cols = [c for c in cols if c not in {"created_at", "updated_at"}]
     params = re.findall(r"\$\d+", values_part)
 
-    assert len(params) == len(cols), "число параметров != числу колонок в INSERT"
+    assert len(params) == len(business_cols), "число параметров != числу колонок-параметров в INSERT"
     assert set(business_cols) == set(_ddl_columns()), "INSERT ссылается на колонки, которых нет в init_db"
 
     # сервис передаёт ровно столько значений, сколько параметров в UPSERT_SQL
