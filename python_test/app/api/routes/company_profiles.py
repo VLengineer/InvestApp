@@ -72,7 +72,14 @@ async def ingest(
         result: dict[str, Any] = await service.ingest()
         return IngestResponse(**result)
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=f"cp.json not found: {exc}") from exc
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"cp.json not found: {exc}. Файл должен лежать по пути "
+                "company_profiles/cp.json внутри образа (/app/company_profiles/cp.json); "
+                "путь можно переопределить env COMPANY_PROFILES_JSON"
+            ),
+        ) from exc
     except Exception as exc:  # noqa: BLE001
         logger.exception("Ingest failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

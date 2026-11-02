@@ -17,6 +17,50 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # (uvicorn app.main:app из python_test/ или скрипты из корня репозитория).
 _ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
+# Корень микросервиса python_test/ (= /app внутри Docker-контейнера):
+# app/core/config.py -> parents[0]=core, [1]=app, [2]=python_test|/app.
+_SERVICE_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _resolve_company_profiles_json(raw: str | None) -> Path:
+    """Надёжный абсолютный путь к cp.json для эндпоинта /company-profiles/ingest.
+
+    Проблемы, которые здесь решаются:
+      * относительный путь из env (``COMPANY_PROFILES_JSON=company_profiles/cp.json``)
+        раньше резолвился относительно CWD процесса и давал 404 «cp.json not found»;
+      * путь мог «уехать», если в env был прописан путь хостовой машины
+        (например ``/host/path/python_test/company_profiles/cp.json``), которого
+        нет внутри контейнера.
+
+    Правила:
+      * env не задан -> ``<корень сервиса>/company_profiles/cp.json``
+        (в контейнере это ``/app/company_profiles/cp.json``, файл копирует Dockerfile);
+      * env задан как относительный -> считаем от корня сервиса;
+      * env задан как абсолютный, но файла там нет -> пробуем то же имя папки
+        относительно корня сервиса (страховка от «хостовых» путей в контейнере);
+      * если ничего не найдено -> возвращаем основной кандидат (ошибка чтения
+        превратится в понятный 404 с фактическим путем).
+    """
+    default = _SERVICE_ROOT / "company_profiles" / "cp.json"
+    if not raw or not raw.strip():
+        return default
+    p = Path(raw.strip()).expanduser()
+    if not p.is_absolute():
+        p = _SERVICE_ROOT / p
+    if p.is_file():
+        return p
+    # Страховка: абсолютный путь из env может быть путём хоста, а не контейнера.
+    # Ищем файл по той же структуре папок относительно корня сервиса.
+    for parent in reversed(p.parents):
+        try:
+            rel = p.relative_to(parent)
+        except ValueError:
+            continue
+        candidate = _SERVICE_ROOT / rel
+        if candidate.is_file():
+            return candidate
+    return default if not default.is_file() and not p.is_file() else p
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -107,13 +151,15 @@ class Settings(BaseSettings):
     # --------------------------- Company profiles -----------------------------
     # Файл профилей компаний для микросервиса company_profiles
     # (env: COMPANY_PROFILES_JSON; по умолчанию python_test/company_profiles/cp.json).
-    company_profiles_json: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parents[2] / "company_profiles" / "cp.json"
-    )
+    company_profiles_json: Path | None = None
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def company_profiles_json_path(self) -> Path:
-        return self.company_profiles_json
+        """Надёжный абсолютный путь к cp.json (см. _resolve_company_profiles_json)."""
+        if self.company_profiles_json is not None:
+            return _resolve_company_profiles_json(str(self.company_profiles_json))
+        return _resolve_company_profiles_json(None)
 
     @field_validator("log_level")
     @classmethod
