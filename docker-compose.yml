@@ -18,10 +18,10 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: all 
-              capabilities: [gpu]
+              count: all
+              capabilities: [ gpu ]
     healthcheck:
-      test: ["CMD-SHELL", "ollama list || exit 1"]
+      test: [ "CMD-SHELL", "ollama list || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -42,7 +42,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init_db:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -50,6 +50,9 @@ services:
       - app_net
 
   n8n:
+    build:
+      context: ./n8n
+      dockerfile: Dockerfile
     image: n8nio/n8n:latest
     container_name: n8n
     restart: unless-stopped
@@ -64,6 +67,7 @@ services:
       WEBHOOK_URL: "${N8N_WEBHOOK_URL:-http://localhost:5678/}"
       GENERIC_TIMEZONE: "${TZ:-Europe/Moscow}"
       TZ: "${TZ:-Europe/Moscow}"
+      PYTHONPATH: "/home/node/.local/lib/python3.12/site-packages"
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:
@@ -74,7 +78,7 @@ services:
     networks:
       - app_net
 
-  python_test: 
+  python_test:
     build:
       context: ./python_test
       dockerfile: Dockerfile
@@ -95,11 +99,6 @@ services:
     networks:
       - app_net
 
-  # Vue-фронтенд «Анализатор новостей»: форма отправляет POST на
-  # http://n8n:5678/webhook/news_analizer (или /webhook-test/… в тестовом
-  # режиме; совпадение имён — не опечатка). ВАЖНО: VITE_N8N_BASE_URL должен
-  # быть именно адресом контейнера n8n в docker-сети (http://n8n:5678), а не
-  # 127.0.0.1 — внутри контейнера frontend localhost указывает на него самого.
   frontend:
     build:
       context: ./frontend
