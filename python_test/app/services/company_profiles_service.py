@@ -39,20 +39,35 @@ def _as_text(value: Any) -> str | None:
 # --------------------------------------------------------------------------- #
 # 1. Чтение JSON
 # --------------------------------------------------------------------------- #
-def load_company_profiles(settings: Settings, path: str | None = None) -> list[dict[str, Any]]:
+def load_company_profiles(settings: Settings, path: str | Path | None = None) -> list[dict[str, Any]]:
     """Прочитать профили из cp.json.
 
     Путь фиксированный: ``company_profiles/cp.json`` рядом с кодом микросервиса
     (в контейнере копируется в образ Dockerfile'ом); переопределяется только
     через env ``COMPANY_PROFILES_JSON`` — из запроса путь указывать не нужно.
+
+    Разрешение пути инкапсулировано в ``Settings.company_profiles_json_path``
+    (см. ``_resolve_company_profiles_json`` в app/core/config.py): относительные
+    пути считаются от корня сервиса, а не от CWD процесса, поэтому файл
+    находится одинаково и в Docker (``/app/company_profiles/cp.json``),
+    и при локальном запуске из любой папки.
     """
-    path = path or str(settings.company_profiles_json_path)
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+    resolved = Path(path) if path else settings.company_profiles_json_path
+    if not resolved.is_absolute():
+        resolved = Path(__file__).resolve().parents[2] / resolved
+    try:
+        with open(resolved, encoding="utf-8") as f:
+            data = json.load(f)
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"{resolved} (проверьте COMPANY_PROFILES_JSON и наличие "
+            "cp.json в образе; после изменения файла пересоберите образ: "
+            "docker compose build --no-cache python_test)"
+        ) from exc
     if isinstance(data, dict):  # допускаем {"profiles": [...]}
         data = data.get("profiles") or data.get("companies") or list(data.values())
     if not isinstance(data, list):
-        raise ValueError(f"Unexpected structure in {path}: expected list of profiles")
+        raise ValueError(f"Unexpected structure in {resolved}: expected list of profiles")
     return data
 
 
