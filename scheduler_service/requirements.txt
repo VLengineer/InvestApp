@@ -1,0 +1,12 @@
+# --- Web-фреймворк и валидация (версии синхронизированы с python_test/requirements.txt) ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.1
+
+# --- Клиенты/БД ---
+httpx==0.28.1
+asyncpg==0.30.0
+
+# --- Безопасность (JWT, единый секрет проекта) ---
+PyJWT==2.10.1

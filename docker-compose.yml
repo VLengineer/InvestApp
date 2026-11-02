@@ -119,6 +119,26 @@ services:
     networks:
       - app_net
 
+  # --- scheduler_service: планировщик опроса n8n (FastAPI + очередь задач в PostgreSQL) ---
+  # Отдельный контейнер-микросервис: HTTP API (/api/v1/scheduler/*) + фоновый воркер,
+  # который циклически создаёт задачи, дёргает вебхук n8n и ждёт callback-и в БД.
+  scheduler_service:
+    build:
+      context: ./scheduler_service
+      dockerfile: Dockerfile
+    container_name: scheduler_service
+    restart: unless-stopped
+    ports:
+      # Swagger: http://localhost:8200/docs
+      - "${SCHEDULER_BIND_IP:-127.0.0.1}:${SCHEDULER_PORT:-8200}:8200"
+    env_file:
+      - ./scheduler_service/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app_net
+
 volumes:
   ollama_data:
   n8n_data:
