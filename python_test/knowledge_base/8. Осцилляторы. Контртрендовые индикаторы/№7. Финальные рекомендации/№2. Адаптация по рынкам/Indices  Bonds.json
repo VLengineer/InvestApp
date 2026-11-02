@@ -1,0 +1,292 @@
+[
+  {
+    "id": "intermarket_relationships_phases",
+    "title": "Межрыночные связи и фазы ротации (Intermarket Rotation)",
+    "category": "Межрыночный анализ",
+    "essence": "Корреляции между классами активов (акции, облигации, сырье, доллар) и последовательность перехода капитала между ними в зависимости от фазы экономического цикла (рост, инфляция, стагнация, рецессия).",
+    "formula": "Фазы цикла и активы:\n1. Recovery (Рост↑, Инфляция↓): Long Акции (циклические), IG Bonds.\n2. Expansion (Рост↑, Инфляция↑): Long Сырье, Энергетика, EM.\n3. Stagflation (Рост↓, Инфляция↑): Long Золото, Энергетика, Защитные акции, Cash.\n4. Recession (Рост↓↓, Инфляция↓): Long Казначейские облигации (TLT), Золото, Защитные.\n\nКлючевые корреляции:\n• UST Yields ↑ → Stocks ↓ (-0.4 to -0.8)\n• DXY ↑ → Commodities ↓ (-0.6 to -0.8)\n• VIX ↑ → Stocks ↓ (-0.7 to -0.9)\n• Credit Spreads ↑ → Stocks ↓ (-0.6 to -0.8)",
+    "interpretation": "Инверсия кривой доходности и рост кредитных спредов сигнализируют о переходе в Recession. Рост PMI и steepening (увеличение наклона) кривой доходности — о Recovery. Доллар и сырье имеют обратную корреляцию, так как сырье номинировано в USD.",
+    "sector_specifics": "Индексы чувствительны к ставкам ФРС (обратная связь). Облигации имеют прямую обратную связь с доходностями (рост ставок = падение цен облигаций).",
+    "limitations": "Корреляции могут ломаться во время кризисов ликвидности (например, в 2022 году акции и облигации падали одновременно из-за шока инфляции и ставок). Межрыночные связи — это усредненные исторические данные, а не жесткие правила.",
+    "related_concepts": [
+      "Economic Cycle",
+      "Yield Curve",
+      "Credit Spreads",
+      "VIX",
+      "Sector Rotation"
+    ],
+    "search_keywords": [
+      "межрыночная ротация",
+      "intermarket rotation",
+      "фазы экономического цикла",
+      "корреляция активов",
+      "reflation trade",
+      "risk on risk off",
+      "связь акций и облигаций",
+      "влияние доллара на сырье"
+    ],
+    "source_text_excerpt": "Фазы межрыночной ротации: 1. Early Recovery, 2. Expansion, 3. Stagflation, 4. Recession. Ключевые корреляции: UST Yields ↑ → Stocks ↓, DXY ↑ → Commodities ↓."
+  },
+  {
+    "id": "yield_curve_spreads_signals",
+    "title": "Кривая доходности и торговые сигналы (Yield Curve)",
+    "category": "Макроэкономические индикаторы",
+    "essence": "Разница между доходностями долгосрочных и краткосрочных казначейских облигаций, служащая главным опережающим индикатором рецессии и инструментом для определения наклона кривой (steepening/flattening) для ротации секторов.",
+    "formula": "Ключевые спреды:\n• 2s10s = 10Y Yield - 2Y Yield (Классический индикатор рецессии).\n• 3m10s = 10Y Yield - 3M Yield (Предпочтительный спред ФРС).\n• 5s30s = 30Y Yield - 5Y Yield.\n\nСигналы наклона:\n• Steepening: 2s10s растет (10Y растет быстрее 2Y).\n• Flattening: 2s10s падает (2Y растет быстрее 10Y).\n• Inversion: 2s10s < 0.",
+    "interpretation": "Inversion (<0): Рецессия вероятна через 12-18 мес (Long TLT, Gold, Defensive; Short HYG, Cyclicals).\nSteepening: Ожидание восстановления (Long Банки KRE, Циклические XLI; Short TLT).\nFlattening: Замедление экономики (Long Защитные XLP, TLT; Short Банки).",
+    "sector_specifics": "ФРС США официально ориентируется на спред 3m10s для оценки рецессионных рисков, тогда как рынки чаще смотрят на 2s10s.",
+    "limitations": "Сигнал о рецессии может запаздывать на 12-18 месяцев. Кривая может оставаться инвертированной долгое время (ложные срабатывания). Требует понимания разницы между номинальными и реальными доходностями (TIPS).",
+    "related_concepts": [
+      "2s10s",
+      "3m10s",
+      "Term Premium",
+      "TLT",
+      "ZB",
+      "Inversion"
+    ],
+    "search_keywords": [
+      "кривая доходности",
+      "yield curve",
+      "2s10s",
+      "3m10s",
+      "инверсия кривой",
+      "steepening",
+      "flattening",
+      "спред доходностей",
+      "опережающий индикатор рецессии"
+    ],
+    "source_text_excerpt": "2s10s: Классический индикатор рецессии. Инверсия (<0) → рецессия через 12-18 мес. Steepening: Economic recovery expected. Flattening: Economic slowdown expected."
+  },
+  {
+    "id": "credit_spreads_hy_oas",
+    "title": "Кредитные спреды (HY-OAS, IG-OAS) и индикаторы стресса",
+    "category": "Макроэкономические индикаторы",
+    "essence": "Разница в доходности (спред) между корпоративными облигациями (высокодоходными или инвестиционного уровня) и безрисковыми казначейскими облигациями. Отражают уровень кредитного риска, паники и стресса в финансовой системе.",
+    "formula": "HY-OAS (High Yield Option-Adjusted Spread) = Yield(High Yield) - Yield(Treasury).\nIG-OAS (Investment Grade OAS) = Yield(Investment Grade) - Yield(Treasury).\n\nИзмеряется в базисных пунктах (bps, 1 bp = 0.01%).\nHY-IG Spread = HY OAS - IG OAS (растет при risk-off).",
+    "interpretation": "HY-OAS < 350 bps: Risk-on (Long HYG, SPY; Short TLT).\nHY-OAS 350-500 bps: Нейтрально.\nHY-OAS 500-700 bps: Risk-off / Стресс (Long TLT, GLD; Short HYG).\nHY-OAS > 700 bps: Кризис / Кредитный стресс (Long TLT, Cash; Short HYG, SPY).",
+    "sector_specifics": "HY-OAS (индикаторы HYG, JNK) чувствителен к стрессу в экономике и малом бизнесе. IG-OAS (индикатор LQD) отражает здоровье крупных корпораций. CCC-OAS — индикатор стресса для самых рискованных заемщиков.",
+    "limitations": "Спреды могут резко расширяться во время паники, что делает хеджирование дорогим. Ликвидность корпоративных облигаций падает в кризис (flight to quality). Спреды могут давать ложные сигналы на коротких дистанциях.",
+    "related_concepts": [
+      "High Yield",
+      "Investment Grade",
+      "HYG",
+      "JNK",
+      "LQD",
+      "Default Risk",
+      "OAS"
+    ],
+    "search_keywords": [
+      "кредитные спреды",
+      "hy-oas",
+      "ig-oas",
+      "спред высокодоходных облигаций",
+      "credit stress",
+      "risk off",
+      "hvg",
+      "jnk",
+      "кредитный риск"
+    ],
+    "source_text_excerpt": "HY-OAS: Спред высокодоходных облигаций над казначейскими. >500 bps = стресс, >1000 bps = кризис. HY-OAS < 350 bps: Risk-on environment."
+  },
+  {
+    "id": "vix_term_structure_regimes",
+    "title": "Терминальная структура VIX и режимы волатильности",
+    "category": "Индикаторы волатильности",
+    "essence": "Соотношение между краткосрочной (VIX) и среднесрочной (VXV, VIX3M) подразумеваемой волатильностью, определяющее рыночный режим (спокойствие или паника) и стратегию торговли (наступление или защита).",
+    "formula": "Терминальная структура:\n• Contango: VIX < VXV < VIX3M (нормальное состояние рынка).\n• Backwardation: VIX > VXV > VIX3M (стресс, паника).\n\nУровни VIX:\n• VIX < 12: Extreme complacency.\n• VIX 12-20: Normal range.\n• VIX 20-30: Elevated fear.\n• VIX 30-40: High fear.\n• VIX > 40: Panic.",
+    "interpretation": "Contango: Long equities, short volatility strategies (получение roll yield).\nBackwardation: Short equities, long volatility, defensive positioning.\nVIX < 12: Подготовка к развороту вверх (слишком спокойно).\nVIX > 40: Сильное возвращение к среднему (паника, возможность для покупки акций).",
+    "sector_specifics": "MOVE index используется для оценки терминальной структуры и волатильности на рынке облигаций (аналог VIX для бондов). VVIX (волатильность волатильности) показывает нестабильность самого VIX.",
+    "limitations": "VIX является mean-reverting индикатором, а не трендовым. Долгое удержание коротких позиций по волатильности (short VIX futures) несет риск экстремальных убытков при резких шоках («сбор копеек перед паровозом»).",
+    "related_concepts": [
+      "VIX",
+      "VVIX",
+      "VXV",
+      "Contango",
+      "Backwardation",
+      "MOVE index"
+    ],
+    "search_keywords": [
+      "vix",
+      "терминальная структура",
+      "contango",
+      "backwardation",
+      "vvix",
+      "vxv",
+      "режимы волатильности",
+      "индекс страха",
+      "move index облигации"
+    ],
+    "source_text_excerpt": "Contango (VIX < VXV < VIX3M): Нормальное состояние рынка. Backwardation (VIX > VXV > VIX3M): Стресс, fear in near-term. VIX > 40: Panic → strong mean reversion likely."
+  },
+  {
+    "id": "intermarket_rotation_strategy",
+    "title": "Стратегия Intermarket Rotation (Адаптация для индексов/облигаций)",
+    "category": "Торговые стратегии",
+    "essence": "Долгосрочная стратегия ротации капитала между классами активов и секторами на основе определения текущей фазы макроэкономического цикла с использованием кривой доходности, кредитных спредов и инфляционных ожиданий.",
+    "formula": "Условия входа и ротации:\n1. Определить фазу по 4+ индикаторам: Yield curve (2s10s), Credit spreads (HY-OAS), Breakeven inflation (TIPS), PMI.\n2. Ребаланс портфеля: Ежеквартально.\n3. Холд период: 1-6 месяцев.\n4. Таймфреймы: W1-MN.\n\nПример (Expansion): Steepening кривой + рост breakeven + tightening HY-OAS → Sell TLT/Growth → Buy Value/Financials/Energy.",
+    "interpretation": "Стратегия позволяет захватывать альфу, перетекая из защитных активов и long-duration облигаций в циклические акции и сырье на ранних стадиях восстановления, и обратно — при признаках стагфляции или рецессии.",
+    "sector_specifics": "Использует ETF для диверсификации: Value (VTV), Financials (XLF), Energy (XLE), Long-duration bonds (TLT), Growth (QQQ).",
+    "limitations": "Требует терпения (холд месяцами). Транзакционные издержки при частой ротации. Макро-данные имеют лаг и могут пересматриваться, что приводит к ложным сигналам о смене фазы.",
+    "related_concepts": [
+      "Economic Cycle",
+      "Yield Curve",
+      "Credit Spreads",
+      "Sector Rotation",
+      "Reflation"
+    ],
+    "search_keywords": [
+      "межрыночная ротация",
+      "intermarket rotation",
+      "фазы цикла",
+      "ротация секторов",
+      "макро ротация",
+      "reflation trade",
+      "стратегия ротации активов"
+    ],
+    "source_text_excerpt": "Специфика для индексов/облигаций: Ключевые индикаторы: Yield curve (2s10s), Credit spreads (HY-OAS), Breakeven inflation (TIPS). Таймфреймы: W1-MN. Холд период: 1-6 месяцев."
+  },
+  {
+    "id": "macro_surprise_strategy_bonds",
+    "title": "Стратегия Macro Surprise + Momentum (Адаптация для индексов/облигаций)",
+    "category": "Торговые стратегии",
+    "essence": "Среднесрочная стратегия, эксплуатирующая расхождение между консенсус-прогнозами и реальными макроэкономическими данными (CPI, NFP, PMI, Fed), вызывающими направленное движение индексов и облигаций.",
+    "formula": "Условия входа:\n1. Минимум 2 из 3 макро-индикаторов подтверждают Surprise Score > +1.0 или < -1.0.\n2. Техническое подтверждение (ROC, MACD).\n3. VIX < 25 или стабилизируется.\n4. SL: 1.5×ATR. Холд: 5-20 дней. Таймфреймы: D1-W1.\n\nМатрица реакций: CPI ↑ → Stocks ↓, Treasuries ↓. Fed Hawkish → Stocks ↓↓, Treasuries ↓↓. NFP ↑ → Stocks ↑, Treasuries ↓.",
+    "interpretation": "Облигации (TLT) наиболее чувствительны к сюрпризам по инфляции (CPI) и занятости (NFP). Индексы (SPY, QQQ) реагируют на данные по росту (PMI, GDP) и риторику ФРС. Стратегия позволяет входить в тренд сразу после того, как рынок переобучится под новые данные.",
+    "sector_specifics": "Казначейские облигации (TLT, IEF) выступают основным инструментом для торговли на сюрпризах по инфляции и ставкам. Золото (GLD) используется как хедж от неожиданных шоков.",
+    "limitations": "Рынок быстро «закладывает» сюрпризы в цену, поэтому вход после релиза данных может быть запоздалым. Одиночный сюрприз может быть отфильтрован общим макро-трендом. Запрещено входить в дни FOMC/CPI до выхода данных.",
+    "related_concepts": [
+      "CESI",
+      "CPI",
+      "NFP",
+      "FOMC",
+      "ROC",
+      "MACD"
+    ],
+    "search_keywords": [
+      "макро сюрпризы",
+      "macro surprise",
+      "cpi surprise",
+      "nfp",
+      "фомц",
+      "торговля на новостях",
+      "disinflation trade",
+      "реакция облигаций на cpi"
+    ],
+    "source_text_excerpt": "Ключевые сюрпризы: CPI, NFP, GDP, PMI, Fed surprises. Таймфреймы: D1-W1. Холд период: 5-20 дней. Матрица реакции: CPI ↑ → Treasuries ↓, Stocks ↓."
+  },
+  {
+    "id": "factor_model_strategy_indices",
+    "title": "Стратегия Factor Model (Value/Momentum/Quality) для индексов",
+    "category": "Торговые стратегии",
+    "essence": "Систематическая ротация между факторными ETF (Value, Momentum, Quality, Size, Low Vol) в зависимости от текущего макроэкономического режима для извлечения факторных премий и снижения волатильности портфеля.",
+    "formula": "Факторы: Value (P/E, P/B), Momentum (12-1 return), Quality (ROE, D/E), Size (Market cap), Low Volatility (Beta).\nИнструменты: VTV (Value), MTUM (Momentum), QUAL (Quality), IWM (Small Cap), USMV (Low Vol).\nРебаланс: Ежеквартально.\n\nРотация по режимам:\n• Recovery: Long Value, Small Cap, Momentum.\n• Expansion: Long Momentum, Quality.\n• Stagflation/Recession: Long Quality, Low Vol.",
+    "interpretation": "В период восстановления экономики (Risk-on) факторы Value и Small Cap показывают лучшую доходность. В периоды стагфляции или рецессии (Risk-off) капитал перетекает в Quality и Low Volatility, которые демонстрируют устойчивость.",
+    "sector_specifics": "Используются только факторные ETF, а не отдельные акции, для снижения идиосинкразического риска и обеспечения широкой диверсификации внутри каждого фактора.",
+    "limitations": "Периоды андерперформанса факторов (например, Value проигрывал Growth в 2010-2020 гг.). Требует строгой дисциплины ребаланса. Не работает в хаотичных, лишенных тренда рынках.",
+    "related_concepts": [
+      "Fama-French",
+      "Factor Investing",
+      "Smart Beta",
+      "VTV",
+      "MTUM",
+      "QUAL"
+    ],
+    "search_keywords": [
+      "факторная модель",
+      "factor model",
+      "value momentum quality",
+      "факторные etf",
+      "smart beta",
+      "факторная ротация",
+      "vtv mtum qual",
+      "факторные премии"
+    ],
+    "source_text_excerpt": "Факторы для индексов: Value, Momentum, Quality, Size, Low Volatility. Факторная ротация по макрорежимам: Recovery → Long Value, Small Cap. Stagflation → Long Quality, Low Vol."
+  },
+  {
+    "id": "volatility_regime_switch_strategy",
+    "title": "Стратегия Volatility Regime Switch (Адаптация для индексов/облигаций)",
+    "category": "Торговые стратегии",
+    "essence": "Адаптация параметров торговли (Stop Loss, Take Profit, размер позиции) и выбор логики (Mean Reversion или Trend Following) под текущий режим волатильности, определяемый по VIX и ATR.",
+    "formula": "Режимы и параметры:\n• Low Vol (VIX < 15, ATR% < 0.8%): Mean reversion (RSI/BB), SL 1×ATR, Размер 1.5%.\n• Normal (VIX 15-20): Standard, SL 1.5×ATR, Размер 1.0%.\n• High Vol (VIX 20-30): Trend following (EMA/MACD), SL 2×ATR, Размер 0.75%.\n• Crisis (VIX > 30): Defensive, SL 2.5×ATR, Размер 0.5%.\n\nТаймфреймы: D1-W1.",
+    "interpretation": "В Low Vol режиме (сжатие BBW) ищутся отскоки от границ канала, так как рынок спокоен и склонен к возврату к среднему. В High Vol режиме торговля только по тренду с широкими стопами, чтобы не выбило новостным шумом.",
+    "sector_specifics": "Для облигаций используется MOVE index и ATR% на TLT/IEF. Для индексов — VIX и ATR% на SPY/QQQ.",
+    "limitations": "Лаг в определении режима. Риск ложных срабатываний при резких новостных спайках VIX. Запрещено использовать узкие стопы (MR) в режиме High Vol, так как позиция будет выбита случайным шумом.",
+    "related_concepts": [
+      "VIX",
+      "ATR",
+      "BBW",
+      "Mean Reversion",
+      "Trend Following",
+      "Regime Switch"
+    ],
+    "search_keywords": [
+      "переключение режимов волатильности",
+      "volatility regime switch",
+      "vix режимы",
+      "atr адаптивный стоп",
+      "mean reversion",
+      "trend following",
+      "стратегия под волатильность"
+    ],
+    "source_text_excerpt": "Режимы волатильности: Low Vol (VIX < 15, ATR% < 0.8%): Mean reversion. High Vol (VIX 20-30): Trend following. Адаптировать SL/TP и размер позиции под режим."
+  },
+  {
+    "id": "critical_risks_indices_bonds",
+    "title": "Критические риски рынка индексов и облигаций",
+    "category": "Риск-менеджмент",
+    "essence": "Специфические угрозы для капитала при торговле индексами и облигациями, связанные с изменением процентных ставок, инфляцией, разрывом корреляций и ликвидностью корпоративного долга.",
+    "formula": "Ключевые риски:\n1. Interest Rate Risk: Duration risk для облигаций (резкое изменение ставок ФРС).\n2. Inflation Risk: Stagflation, unexpected spikes.\n3. Liquidity Risk: Wide bid/ask spreads для корпоративных бондов.\n4. Correlation Breakdown: Акции и облигации падают вместе (как в 2022).\n5. Model/Factor Risk: Длительный underperformance фактора (Value).",
+    "interpretation": "Защита: Диверсификация по duration (TLT, IEF, SHY). Хеджирование инфляции через TIPS. Торговля корпоративными облигациями только через ETF (LQD, HYG) для избежания риска дефолта отдельного эмитента. Мониторинг rolling correlations.",
+    "sector_specifics": "Корпоративные облигации подвержены риску ликвидности в кризис (flight to quality). Казначейские облигации подвержены риску процентной ставки (duration risk). Индексы подвержены риску шока инфляции.",
+    "limitations": "Хеджирование через TIPS или опционы съедает доходность в спокойные периоды. В системных кризисах диверсификация между акциями и облигациями (классический портфель 60/40) перестает работать.",
+    "related_concepts": [
+      "Duration Risk",
+      "TIPS",
+      "Correlation Breakdown",
+      "Flight to Quality",
+      "Liquidity Risk",
+      "Stagflation"
+    ],
+    "search_keywords": [
+      "риски индексов и облигаций",
+      "duration risk",
+      "риск ликвидности",
+      "разрыв корреляций",
+      "inflation risk",
+      "flight to quality",
+      "tips",
+      "крах портфеля 60/40"
+    ],
+    "source_text_excerpt": "Критические риски: 1. Interest Rate Risk. 2. Inflation Risk. 3. Liquidity Risk (для корпоративных облигаций). 4. Correlation Breakdown. 5. Model Risk."
+  },
+  {
+    "id": "expected_metrics_indices_bonds",
+    "title": "Ожидаемые метрики и профили риска для индексов/облигаций",
+    "category": "Ожидаемые метрики",
+    "essence": "Реалистичные показатели доходности, Win Rate и Risk/Reward для стратегий торговли индексами и облигациями, а также рекомендации по выбору инструментов в зависимости от профиля трейдера.",
+    "formula": "Метрики стратегий:\n• Intermarket Rotation: WR 55-65%, RR 1:2-1:3, Холд 1-6 мес.\n• Macro Surprise: WR 55-65%, RR 1:2-1:3, Холд 5-20 дней.\n• Factor Model: WR 50-60%, RR 1:1.5-1:2.5, Холд 1-6 мес.\n• Vol Regime Switch: WR 55-65%, RR 1:2-1:3, Холд 2-20 дней.\n\nДоходность: Консервативная 8-12%, Умеренная 12-20%, Агрессивная 20-35%.",
+    "interpretation": "Консервативный профиль: SPY, QQQ, TLT, IEF, AGG (без левериджа). Умеренный: + Sector ETFs, Factor ETFs, Gold (леверидж до 1.5×). Агрессивный: Futures (ES, NQ, ZB), Options, Leveraged ETFs (до 2-3×).",
+    "sector_specifics": "Минимальный капитал: $5,000 для индексов, $10,000 для казначейских облигаций, $25,000 для корпоративных. Комиссии для ETF минимальны ($0-5/торговля).",
+    "limitations": "Указанные доходности предполагают строгую дисциплину и отсутствие эмоциональных ошибок. Использование левериджа > 2× на облигациях или индексах крайне опасно из-за гэпов и риска margin call. Реалистичная доходность сильно зависит от макро-режима.",
+    "related_concepts": [
+      "Win Rate",
+      "Profit Factor",
+      "Sharpe Ratio",
+      "Max Drawdown",
+      "Risk/Reward",
+      "60/40 Portfolio"
+    ],
+    "search_keywords": [
+      "метрики индексов и облигаций",
+      "ожидаемая доходность",
+      "win rate",
+      "консервативный портфель",
+      "60/40 портфель",
+      "факторная доходность",
+      "профиль риска трейдера",
+      "леверидж для облигаций"
+    ],
+    "source_text_excerpt": "Ожидаемые метрики: Intermarket Rotation (WR 55-65%), Macro Surprise (WR 55-65%), Factor Model (WR 50-60%). Реалистичная годовая доходность: Консервативный 8-12%, Умеренный 12-20%, Агрессивный 20-35%."
+  }
+]

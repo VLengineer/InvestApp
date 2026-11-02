@@ -1,0 +1,477 @@
+[
+  {
+    "id": "regime_filtering",
+    "title": "Фильтрация рыночного режима (Regime Filtering)",
+    "category": "Риск-менеджмент",
+    "essence": "Механизм избегания торговли в неопределенных, хаотичных условиях или «пиле» (choppy market), где статистическое преимущество (edge) стратегии минимально или отсутствует. Фильтр сохраняет капитал для качественных сетапов.",
+    "formula": "Regime_Score = w₁×ADX_norm + w₂×BBW_norm + w₃×VIX_norm + w₄×Macro_Surprise\n\nГде:\nw₁=0.3, w₂=0.25, w₃=0.25, w₄=0.2 (веса индикаторов)\nADX_norm — нормализованная сила тренда\nBBW_norm — нормализованная ширина полос Боллинджера\nVIX_norm — нормализованная волатильность\nMacro_Surprise — макро-сюрпризы\n\nПравило: If Regime_Score ∈ [-0.3, +0.3] → 'Neutral' → NO TRADE",
+    "interpretation": "Strong Trend (Score > +0.5): Полноразмерный вход (100% размера).\nNormal (Score +0.3 to +0.5): Уменьшенный вход (70% размера).\nNeutral/Choppy (Score от -0.3 до +0.3 или < -0.3): Пропуск сделки, торговля запрещена.",
+    "sector_specifics": null,
+    "limitations": "Может пропустить хорошие сетапы на границах режимов. Требует корректной нормализации индикаторов, чтобы разные шкалы (например, VIX и ADX) не искажали итоговый Score.",
+    "related_concepts": [
+      "Volatility Regime Switch",
+      "Factor Rotation",
+      "Position Sizing",
+      "ADX",
+      "BBW"
+    ],
+    "search_keywords": [
+      "фильтрация режима",
+      "regime filtering",
+      "фильтр волатильности",
+      "избегать пилы",
+      "choppy market",
+      "режимный фильтр",
+      "regime score",
+      "нормализация индикаторов"
+    ],
+    "source_text_excerpt": "Избежать торговли в неопределенных/хаотичных условиях, где edge стратегии минимален. Если Regime_Score ∈ [-0.3, +0.3] → 'Neutral' → NO TRADE."
+  },
+  {
+    "id": "position_sizing",
+    "title": "Расчет размера позиции (Position Sizing)",
+    "category": "Риск-менеджмент",
+    "essence": "Математическое определение объема сделки для контроля риска на одну операцию и максимизации геометрического роста капитала. Балансирует между защитой от убытков и использованием потенциала стратегии.",
+    "formula": "1. Фиксированный риск:\nSize = (Capital × Risk%) / (SL_distance × Multiplier)\n\n2. Критерий Келли (Kelly Criterion):\nf* = (W × R - L) / R\nГде: W = win rate, L = loss rate (1-W), R = avg win / avg loss.\nИспользовать 0.25×f* (Quarter Kelly) для безопасности.\n\n3. Таргетирование волатильности:\nSize = (Capital × Target_Vol%) / (ATR% × Multiplier)",
+    "interpretation": "Консервативный профиль: 0.5-1% риска на сделку.\nУмеренный профиль: 1-2% риска.\nАгрессивный профиль: 2-3% риска (допустимо только при Win Rate > 60%).\nQuarter Kelly обычно дает размер, близкий к 1-2% риска.",
+    "sector_specifics": null,
+    "limitations": "Критерий Келли крайне волатилен и требует идеальной оценки W и R; на практике используется его дробная часть (Quarter Kelly). Фиксированный риск в процентах не учитывает текущую волатильность рынка без адаптации через ATR.",
+    "related_concepts": [
+      "Stop Loss",
+      "Drawdown Limits",
+      "Volatility Control",
+      "Kelly Criterion",
+      "Risk per Trade"
+    ],
+    "search_keywords": [
+      "размер позиции",
+      "position sizing",
+      "критерий келли",
+      "kelly criterion",
+      "quarter kelly",
+      "риск на сделку",
+      "расчет лота",
+      "таргетирование волатильности"
+    ],
+    "source_text_excerpt": "Контролировать риск на сделку, максимизировать геометрический рост капитала. Size = (Capital × Risk%) / (SL_distance × Multiplier). Использовать 0.25×f* (Quarter Kelly) для безопасности."
+  },
+  {
+    "id": "adaptive_stop_loss",
+    "title": "Адаптивный Stop Loss (Динамический стоп-лосс)",
+    "category": "Риск-менеджмент",
+    "essence": "Механизм установки стоп-лосса, который автоматически адаптируется к текущей волатильности рынка (через ATR), а не использует фиксированное расстояние в пунктах. Защищает от выбивания позиции случайным рыночным шумом.",
+    "formula": "SL = Entry ± k × ATR(N)\n\nГде k (множитель) зависит от режима волатильности:\n• Low Vol (Mean Reversion): k = 1.0 - 1.2\n• Normal: k = 1.5\n• High Vol (Trend Following): k = 2.0 - 2.5\n• Crisis: k = 2.5 - 3.0 (или немедленный выход)\n\nАльтернативы:\n• Chandelier Exit: SL = Highest_High - 3×ATR\n• Structural SL: За последним swing low/high",
+    "interpretation": "В низкой волатильности стоп узкий (1.0-1.2×ATR), что позволяет увеличить размер позиции. В высокой волатильности стоп широкий (2.0-2.5×ATR), а размер позиции автоматически уменьшается для сохранения того же абсолютного риска в долларах.",
+    "sector_specifics": null,
+    "limitations": "При экстремальных новостных гэпах SL может не сработать на заданном уровне (проскальзывание). Требует ежедневного или почасового пересчета ATR. В очень спокойном рынке узкий стоп может быть выбит случайным шумом.",
+    "related_concepts": [
+      "Volatility Regime",
+      "Position Sizing",
+      "Trailing Stop",
+      "Chandelier Exit",
+      "ATR"
+    ],
+    "search_keywords": [
+      "адаптивный стоп",
+      "adaptive stop loss",
+      "динамический стоп",
+      "стоп по atr",
+      "chandelier exit",
+      "стоп лосс волатильность",
+      "структурный стоп",
+      "k atr"
+    ],
+    "source_text_excerpt": "SL должен адаптироваться к текущей волатильности, а не быть фиксированным. SL = Entry ± k × ATR(N), где k ∈ [1.0, 2.5] по режиму."
+  },
+  {
+    "id": "portfolio_diversification",
+    "title": "Диверсификация портфеля (Portfolio Diversification)",
+    "category": "Риск-менеджмент",
+    "essence": "Распределение капитала между некоррелированными позициями для снижения идиосинкразического (специфического) риска отдельных активов. Закон больших чисел обеспечивает стабильность кривой капитала (equity curve).",
+    "formula": "Правила лимитов:\n• N_positions ∈ [5, 10] (количество открытых позиций)\n• Max_Position ≤ 10-15% портфеля (вес одного актива)\n• Max_Sector ≤ 25-30% (вес одного сектора)\n• Max_Asset_Class ≤ 40% (вес одного класса активов)",
+    "interpretation": "Минимум: 5 позиций (иначе нет эффекта диверсификации).\nОптимум: 7-10 позиций (баланс риска и управляемости).\nМаксимум: 15 позиций (превышение ведет к dilution edge — размыванию преимущества и сложности мониторинга).",
+    "sector_specifics": null,
+    "limitations": "В системных кризисах корреляции между активами стремятся к 1, и диверсификация перестает работать (все падает одновременно). Слишком большое количество позиций размывает альфу и усложняет ребалансировку.",
+    "related_concepts": [
+      "Correlation Control",
+      "Exposure Limits",
+      "Rebalancing",
+      "Idiosyncratic Risk",
+      "Equity Curve"
+    ],
+    "search_keywords": [
+      "диверсификация портфеля",
+      "portfolio diversification",
+      "распределение капитала",
+      "снижение риска",
+      "лимиты на сектор",
+      "количество позиций",
+      "идиосинкразический риск",
+      "dilution edge"
+    ],
+    "source_text_excerpt": "Снизить идиосинкразический риск через некоррелированные позиции. N_positions ∈ [5, 10]. Max_Position ≤ 10-15% портфеля. Max_Sector ≤ 25-30%."
+  },
+  {
+    "id": "correlation_control",
+    "title": "Контроль корреляций (Correlation Monitoring)",
+    "category": "Риск-менеджмент",
+    "essence": "Мониторинг взаимосвязей между открытыми позициями для предотвращения скрытой концентрации риска. Две сильно коррелирующие позиции фактически удваивают риск, а не диверсифицируют его.",
+    "formula": "Portfolio_Variance = w'Σw\nГде: Σ — ковариационная матрица, w — вектор весов активов.\n\nПравила:\n• If Corr(i,j) > 0.7 → Считать как одну позицию (объединить риск).\n• Diversification_Ratio (DR) = Σ(w × σᵢ) / σ_portfolio\n• DR > 1.5 = хорошая диверсификация.",
+    "interpretation": "Max pairwise correlation (максимальная попарная корреляция): < 0.6.\nAverage portfolio correlation (средняя корреляция портфеля): < 0.4.\nВ кризисах: Уменьшить размер позиций на 50%, так как корреляции стремятся к 1.",
+    "sector_specifics": null,
+    "limitations": "Корреляции непостоянны и могут резко вырасти в моменты стресса (flight to quality). Историческая корреляция не гарантирует будущую. Расчет ковариационной матрицы для больших портфелей требует качественных данных.",
+    "related_concepts": [
+      "Diversification",
+      "Stress Testing",
+      "Drawdown Limits",
+      "Covariance Matrix",
+      "Diversification Ratio"
+    ],
+    "search_keywords": [
+      "контроль корреляций",
+      "correlation control",
+      "корреляция активов",
+      "скрытая концентрация",
+      "ковариационная матрица",
+      "diversification ratio",
+      "попарная корреляция",
+      "риск портфеля"
+    ],
+    "source_text_excerpt": "Избежать скрытой концентрации риска через коррелированные позиции. If Corr(i,j) > 0.7 → Consider as one position. Max pairwise correlation < 0.6."
+  },
+  {
+    "id": "drawdown_limits",
+    "title": "Лимиты максимальной просадки (Maximum Drawdown Limits)",
+    "category": "Риск-менеджмент",
+    "essence": "Автоматическая остановка торговли или уменьшение размера позиций при достижении критической просадки капитала. Защищает капитал от полного уничтожения и трейдера от психологического tilt (эмоциональных решений).",
+    "formula": "Drawdown (DD) = (Peak_Equity - Current_Equity) / Peak_Equity × 100%\n\nПравила реагирования:\n• If DD > 5% → Reduce size by 50%\n• If DD > 10% → Stop trading for 1 week\n• If DD > 15% → Stop trading for 1 month, full review\n• If DD > 20% → Stop trading, full strategy audit\n\nВосстановление:\nRecovery_factor = (1 + DD%)^(1/n) - 1",
+    "interpretation": "После просадки (DD) 20% для возврата к пику нужна прибыль +25%.\nПосле DD 50% для возврата нужна прибыль +100%.\nПринудительная пауза при DD > 10-15% обязательна для анализа ошибок и охлаждения головы.",
+    "sector_specifics": null,
+    "limitations": "Принудительная пауза может привести к пропуску начала нового сильного тренда, который выведет портфель из просадки. Психологически сложно соблюдать правила и закрывать позиции или останавливать торговлю в момент стресса.",
+    "related_concepts": [
+      "Position Sizing",
+      "Stress Testing",
+      "Regime Filtering",
+      "Recovery Factor",
+      "Stop Trading"
+    ],
+    "search_keywords": [
+      "лимиты просадки",
+      "drawdown limits",
+      "максимальная просадка",
+      "stop trading",
+      "остановка торговли",
+      "восстановление капитала",
+      "recovery factor",
+      "риск менеджмент просадка"
+    ],
+    "source_text_excerpt": "Автоматическая остановка торговли при достижении критической просадки. If DD > 10% → Stop trading for 1 week. If DD > 15% → Stop trading for 1 month, full review."
+  },
+  {
+    "id": "volatility_targeting",
+    "title": "Таргетирование волатильности (Volatility Targeting)",
+    "category": "Риск-менеджмент",
+    "essence": "Метод нормализации риска портфеля через автоматическую адаптацию размера позиции к текущей реализованной волатильности. Позволяет поддерживать стабильный уровень риска независимо от рыночных условий.",
+    "formula": "Size_adjusted = Base_Size × (Target_Vol / Current_Vol)\n\nГде:\nTarget_Vol — целевая волатильность портфеля (обычно 10-15% годовых)\nCurrent_Vol — текущая реализованная волатильность (например, 30-day realized vol)",
+    "interpretation": "Если Current_Vol (30d) = 20%, а Target_Vol = 12%, то Size_adjusted = Base_Size × (12/20) = 0.6 × Base_Size.\nВ высокой волатильности размер уменьшается автоматически. В низкой волатильности — увеличивается. Это стабилизирует equity curve.",
+    "sector_specifics": "Широко используется в Risk Parity фондах и CTA-стратегиях, где леверидж динамически адаптируется под волатильность базовых активов.",
+    "limitations": "Требует надежной и быстрой оценки Current_Vol. В кризисах волатильность может скачкообразно меняться, вызывая частые и резкие изменения размера позиций (whipsaw).",
+    "related_concepts": [
+      "Position Sizing",
+      "Adaptive SL",
+      "Regime Filtering",
+      "Risk Parity",
+      "Realized Volatility"
+    ],
+    "search_keywords": [
+      "таргетирование волатильности",
+      "volatility targeting",
+      "нормализация риска",
+      "целевая волатильность",
+      "адаптация размера",
+      "risk parity",
+      "cta стратегии",
+      "волатильностный контроль"
+    ],
+    "source_text_excerpt": "Нормализовать риск портфеля через адаптацию размера позиции к текущей волатильности. Size_adjusted = Base_Size × (Target_Vol / Current_Vol)."
+  },
+  {
+    "id": "time_stops",
+    "title": "Временные стопы (Time-Based Stops)",
+    "category": "Риск-менеджмент",
+    "essence": "Правило выхода из позиции, если цена не движется в ожидаемом направлении в течение заданного временного горизонта. Освобождает замороженный капитал для более качественных и быстрых сетапов.",
+    "formula": "If (Current_Time - Entry_Time) > T_max AND Profit < Target → Exit\n\nГде T_max зависит от стиля торговли:\n• Scalping: 30-60 минут\n• Intraday: 4-8 часов\n• Swing: 5-10 дней\n• Position: 20-30 дней",
+    "interpretation": "Если сделка 'зависла' и не показывает прибыли в ожидаемый горизонт, тезис входа вероятнее всего неверен. Держать убыточную или околонулевую позицию 'в надежде' создает риск большего убытка и упущенной выгоды.",
+    "sector_specifics": null,
+    "limitations": "Может преждевременно закрыть позицию перед началом сильного движения, если рынку потребовалось чуть больше времени на консолидацию. Требует четкого и дисциплинированного определения T_max до входа.",
+    "related_concepts": [
+      "Regime Filtering",
+      "Probability Decay (ML)",
+      "Trailing Stop",
+      "Opportunity Cost",
+      "Time in Trade"
+    ],
+    "search_keywords": [
+      "временные стопы",
+      "time stops",
+      "выход по времени",
+      "time in trade",
+      "зависшая сделка",
+      "освобождение капитала",
+      "t_max",
+      "стоп по времени"
+    ],
+    "source_text_excerpt": "Выйти из позиции, если она не работает в ожидаемый горизонт. If (Current_Time - Entry_Time) > T_max AND Profit < Target → Exit."
+  },
+  {
+    "id": "factor_rotation",
+    "title": "Ротация факторов (Factor Rotation)",
+    "category": "Риск-менеджмент",
+    "essence": "Процесс динамического переключения весов между факторами (Value, Momentum, Quality, Low Vol) в зависимости от текущего макрорежима и исторической силы (momentum) каждого фактора.",
+    "formula": "Factor_Weight_i = Base_Weight × Momentum_Score_i × Regime_Score_i\n\nMomentum_Score (на основе 3-месячной доходности фактора):\n• 3m return > +1σ: Weight × 1.3\n• 3m return 0 to +1σ: Weight × 1.0\n• 3m return < 0: Weight × 0.5\n• 3m return < -1σ: Weight × 0.2",
+    "interpretation": "Факторы цикличны: Value outperforms в recovery, Momentum в expansion, Quality в recession. Ротация повышает overall return.\nРебалансировка весов: Ежеквартально.\nЛимиты: Мин. вес фактора 10%, макс. вес фактора 40%.",
+    "sector_specifics": null,
+    "limitations": "Факторы могут долго находиться в андерперформансе (например, Value в 2010-2020). Требует точного определения макрорежима. Частая ротация увеличивает транзакционные издержки.",
+    "related_concepts": [
+      "Regime Filtering",
+      "Macro Surprise",
+      "Intermarket Rotation",
+      "Factor Momentum",
+      "Smart Beta"
+    ],
+    "search_keywords": [
+      "ротация факторов",
+      "factor rotation",
+      "факторное инвестирование",
+      "value momentum quality",
+      "факторный моментум",
+      "ребаланс факторов",
+      "макрорежим факторы",
+      "факторные веса"
+    ],
+    "source_text_excerpt": "Переключаться между факторами в зависимости от макрорежима и factor momentum. Factor_Weight_i = Base_Weight × Momentum_Score_i × Regime_Score_i."
+  },
+  {
+    "id": "portfolio_hedging",
+    "title": "Хеджирование портфеля (Portfolio Hedging)",
+    "category": "Риск-менеджмент",
+    "essence": "Защита портфеля от кризисных событий и хвостовых рисков (black swans) с помощью деривативов или обратных позиций. Хедж стоит денег (drag на performance), но защищает от катастрофических убытков.",
+    "formula": "Hedge_Ratio = β_portfolio × (VIX_current / VIX_threshold)\n\nМетоды хеджирования:\n1. Protective Puts: Купить OTM puts на SPY.\n2. Long VIX futures: При VIX < 15.\n3. Long Treasuries: TLT как hedge от дефляции/рецессии.\n4. Long Gold: GLD как inflation hedge.\n5. Short futures: Delta-neutral hedge.",
+    "interpretation": "Normal regime: 5% портфеля в хедж (например, protective puts).\nElevated vol: 10% хедж.\nCrisis regime: 20% хедж + снижение общей экспозиции.\nОптимум: 5-15% портфеля постоянно или динамически в хедже.",
+    "sector_specifics": null,
+    "limitations": "Постоянный хедж съедает доходность в спокойные рынки (страхование стоит денег). Требует понимания опционов и фьючерсов. Неправильный выбор инструмента хеджирования может не сработать в нужный кризис.",
+    "related_concepts": [
+      "VIX Regime",
+      "Drawdown Limits",
+      "Stress Testing",
+      "Protective Puts",
+      "Tail Risk"
+    ],
+    "search_keywords": [
+      "хеджирование портфеля",
+      "portfolio hedging",
+      "защита от кризиса",
+      "protective puts",
+      "хвостовые риски",
+      "vix futures",
+      "дельта нейтральный хедж",
+      "страхование портфеля"
+    ],
+    "source_text_excerpt": "Защитить портфель от кризисных событий и хвостовых рисков. Hedge_Ratio = β_portfolio × (VIX_current / VIX_threshold). Оптимум: 5-15% портфеля в hedge."
+  },
+  {
+    "id": "stress_testing",
+    "title": "Стресс-тестирование (Stress Testing)",
+    "category": "Риск-менеджмент",
+    "essence": "Проверка устойчивости торговой стратегии или портфеля на исторических кризисах и экстремальных сценариях для выявления скрытых уязвимостей до начала реальной торговли.",
+    "formula": "Test_Strategy on historical crises:\n• 2008 Financial Crisis (SPY -57%)\n• 2020 COVID Crash (SPY -34% за месяц)\n• 2022 Bear Market (SPY -25%, TLT -30%)\n• 2015 / 2010 Flash Crashes\n\nКритерии выживания:\n• Max_DD_stress ≤ 25%\n• Recovery_time ≤ 6 месяцев\n• Correlation in stress < 0.8",
+    "interpretation": "Если стратегия показывает неприемлемые убытки (Max DD > 25-30%) или не восстанавливается за 6 месяцев на исторических данных, она не готова к реальной торговле. Стресс-тест выявляет необходимость добавления хеджей (например, TLT).",
+    "sector_specifics": null,
+    "limitations": "Прошлые кризисы могут не повториться в точности (риск неизведанного). Стресс-тест на исторических данных не учитывает ликвидационные гэпы и остановку торгов, которые случаются в реальности.",
+    "related_concepts": [
+      "Drawdown Limits",
+      "Correlation Control",
+      "Hedging",
+      "Backtesting",
+      "Black Swan"
+    ],
+    "search_keywords": [
+      "стресс тестирование",
+      "stress testing",
+      "проверка на кризисах",
+      "исторические кризисы",
+      "максимальная просадка в стрессе",
+      "backtesting кризис",
+      "устойчивость стратегии",
+      "flash crash"
+    ],
+    "source_text_excerpt": "Проверить устойчивость стратегии на исторических кризисах. Test_Strategy on: 2008, 2020, 2022. Max_DD_stress ≤ 25%. Recovery_time ≤ 6 месяцев."
+  },
+  {
+    "id": "concept_drift_detection",
+    "title": "Детекция дрейфа концепции (Concept Drift Detection для ML)",
+    "category": "Риск-менеджмент",
+    "essence": "Механизм обнаружения момента, когда машинная модель устаревает из-за изменения рыночных паттернов (нестационарности) и требует немедленного переобучения или остановки торговли.",
+    "formula": "Методы детекции:\n1. Page-Hinkley Test:\nm_t = Σ(xᵢ - x̄ - δ)\nAlarm if m_t - min(m) > λ\n\n2. Accuracy monitoring:\nIf rolling_accuracy < baseline - 2σ → Drift\n\n3. Feature distribution:\nKL_Divergence(train, current) > threshold → Drift",
+    "interpretation": "Drift Score < 0.3: No action (модель актуальна).\nDrift Score 0.3-0.5: Monitor closely (готовиться к переобучению, снизить размер).\nDrift Score > 0.5: Retrain model (переобучить на новых данных).\nAccuracy < 50%: Stop trading, full audit (немедленная остановка).",
+    "sector_specifics": "Критично для алгоритмических и ML-стратегий, где паттерны меняются быстрее, чем в классическом техническом анализе.",
+    "limitations": "Ложные срабатывания (шум можно принять за дрейф). Задержка детекции (дрейф обнаруживается постфактум). Сложность отличия реального дрейфа от краткосрочного шума.",
+    "related_concepts": [
+      "ML Feature Stack",
+      "Regime Filtering",
+      "Rebalancing",
+      "Page-Hinkley Test",
+      "KL Divergence"
+    ],
+    "search_keywords": [
+      "дрейф концепции",
+      "concept drift",
+      "детекция дрейфа",
+      "переобучение модели",
+      "page-hinkley",
+      "ml мониторинг",
+      "нестационарность рынка",
+      "устаревание модели"
+    ],
+    "source_text_excerpt": "Обнаружить, когда ML-модель устаревает и требует переобучения. Drift Score > 0.5: Retrain model. Accuracy < 50%: Stop trading, full audit."
+  },
+  {
+    "id": "portfolio_rebalancing",
+    "title": "Ребалансировка портфеля (Portfolio Rebalancing)",
+    "category": "Риск-менеджмент",
+    "essence": "Периодическое приведение весов активов в портфеле к целевым значениям. Механически реализует принцип 'продавать дорогое, покупать дешевое', фиксируя прибыль и контролируя риск концентрации.",
+    "formula": "1. Calendar rebalance (по календарю):\nRebalance every N days (usually quarterly).\n\n2. Threshold rebalance (по порогу):\nIf |Actual_Weight - Target_Weight| > 5% → Rebalance.\n\n3. Combination (комбинированный):\nRebalance quarterly OR when threshold breached.",
+    "interpretation": "Без ребаланса портфель дрейфует в сторону outperforming активов, создавая скрытую концентрацию риска. Ребалансировка возвращает портфель к исходному профилю риска.\nОптимум: Ежеквартально или при отклонении > 5%.",
+    "sector_specifics": null,
+    "limitations": "Транзакционные издержки (комиссии, спреды, налоги) могут съесть прибыль от ребалансировки. Не следует ребалансировать портфель из-за мелких отклонений (1-2%).",
+    "related_concepts": [
+      "Diversification",
+      "Factor Rotation",
+      "Correlation Control",
+      "Transaction Costs",
+      "Target Weight"
+    ],
+    "search_keywords": [
+      "ребалансировка портфеля",
+      "portfolio rebalancing",
+      "выравнивание весов",
+      "продавать дорогое покупать дешевое",
+      "порог ребалансировки",
+      "ежеквартальный ребаланс",
+      "дрейф портфеля",
+      "целевые веса"
+    ],
+    "source_text_excerpt": "Вернуть веса активов к целевым, зафиксировать прибыль, контролировать риск. If |Actual_Weight - Target_Weight| > 5% → Rebalance."
+  },
+  {
+    "id": "exposure_limits",
+    "title": "Лимиты экспозиции (Exposure Limits)",
+    "category": "Риск-менеджмент",
+    "essence": "Жесткие ограничения на максимальный вес одного актива, сектора, страны или класса активов в портфеле, а также лимиты на использование левериджа. Защищают от катастрофических потерь при крахе одного инструмента.",
+    "formula": "Правила лимитов:\n• Max_Position ≤ 10-15% портфеля\n• Max_Sector ≤ 25-30%\n• Max_Asset_Class ≤ 40%\n• Max_Country ≤ 30%\n• Max_Currency ≤ 40%\n• Gross_Exposure ≤ 150% (с учетом левериджа)\n• Net_Exposure ∈ [-30%, +50%]",
+    "interpretation": "Концентрация = риск. Даже самый лучший актив может упасть на 50% (например, акции отдельной компании).\nЛеверидж: ≤ 2× (консервативно), ≤ 3× (умеренно). Превышение лимитов строго запрещено.",
+    "sector_specifics": null,
+    "limitations": "Жесткие лимиты могут снизить потенциальную доходность, если трейдер уверен в сильном тренде одного сектора или актива. Требует дисциплины для отказа от 'идеальной' сделки, если она нарушает лимиты.",
+    "related_concepts": [
+      "Diversification",
+      "Correlation Control",
+      "Drawdown Limits",
+      "Leverage",
+      "Gross/Net Exposure"
+    ],
+    "search_keywords": [
+      "лимиты экспозиции",
+      "exposure limits",
+      "концентрация риска",
+      "максимальный вес актива",
+      "лимит на сектор",
+      "gross exposure",
+      "net exposure",
+      "лимит левериджа"
+    ],
+    "source_text_excerpt": "Ограничить концентрацию риска в одном активе, секторе или рынке. Max_Position ≤ 10-15% портфеля. Max_Sector ≤ 25-30%. Gross_Exposure ≤ 150%."
+  },
+  {
+    "id": "risk_management_process",
+    "title": "Интегрированный процесс управления риском (Risk Management Process)",
+    "category": "Риск-менеджмент",
+    "essence": "Непрерывный цикл действий на этапах Pre-Trade (до сделки), In-Trade (во время), Post-Trade (после) и Crisis (при кризисе), обеспечивающий системный контроль над всеми аспектами риска.",
+    "formula": "1. PRE-TRADE: Regime Filter, Correlation Check, Exposure Check, Size/SL Calculation.\n2. IN-TRADE: Monitor Regime, Drift (ML), Drawdown, Correlation.\n3. POST-TRADE: Log results, Update statistics, Check rebalance threshold.\n4. CRISIS PROTOCOL: DD > 10% → Stop 1 week; DD > 15% → Stop 1 month; VIX > 30 → Reduce size 50%.",
+    "interpretation": "Риск-менеджмент — это не разовое действие при входе, а постоянный мониторинг и адаптация. Если режим меняется во время удержания позиции, размер и стопы должны быть скорректированы.",
+    "sector_specifics": null,
+    "limitations": "Требует высокой автоматизации и строгой дисциплины. Ручное исполнение всех шагов подвержено человеческим ошибкам и эмоциональным решениям.",
+    "related_concepts": [
+      "Regime Filtering",
+      "Position Sizing",
+      "Drawdown Limits",
+      "Crisis Protocol",
+      "Trading Journal"
+    ],
+    "search_keywords": [
+      "процесс управления риском",
+      "risk management process",
+      "pre-trade in-trade post-trade",
+      "протокол кризиса",
+      "цикл риск менеджмента",
+      "мониторинг позиции",
+      "автоматизация риска"
+    ],
+    "source_text_excerpt": "Полный процесс управления риском: PRE-TRADE (Regime, Correlation, Size), IN-TRADE (Monitor Regime, Drift, DD), POST-TRADE (Log, Rebalance), CRISIS PROTOCOL."
+  },
+  {
+    "id": "risk_management_metrics",
+    "title": "Ожидаемые метрики риск-менеджмента (Risk Management Metrics)",
+    "category": "Риск-менеджмент",
+    "essence": "Сводная таблица целевых показателей риск-менеджмента для трех профилей трейдера (консервативный, умеренный, агрессивный), определяющая допустимые уровни риска, левериджа и просадок.",
+    "formula": "Метрики по профилям:\n• Risk per trade: 0.5-1% (Cons) / 1-2% (Mod) / 2-3% (Agg)\n• Max positions: 5-7 / 7-10 / 10-15\n• Max correlation: 0.5 / 0.6 / 0.7\n• Max drawdown: 10% / 15% / 20%\n• Max leverage: 1× / 1.5-2× / 2-3×\n• Hedge allocation: 10-15% / 5-10% / 0-5%\n• Sharpe Ratio: 1.5-2.0 / 1.2-1.8 / 1.0-1.5",
+    "interpretation": "Агрессивный профиль дает потенциально выше Sharpe, но несет риск экстремальных просадок (Max DD в стрессе 25-35%). Консервативный профиль защищает капитал, но требует больше времени для восстановления после просадок из-за низкого риска.",
+    "sector_specifics": null,
+    "limitations": "Агрессивный профиль (2-3% риска, леверидж 3×) требует железной психологии, опыта и автоматизации. Новичкам категорически не рекомендуется.",
+    "related_concepts": [
+      "Position Sizing",
+      "Drawdown Limits",
+      "Sharpe Ratio",
+      "Leverage",
+      "Trader Profile"
+    ],
+    "search_keywords": [
+      "метрики риск менеджмента",
+      "risk management metrics",
+      "профиль трейдера",
+      "консервативный умеренный агрессивный",
+      "риск на сделку",
+      "максимальный леверидж",
+      "sharpe ratio профили",
+      "допустимая просадка"
+    ],
+    "source_text_excerpt": "Ожидаемые метрики риск-менеджмента: Risk per trade (0.5-1% / 1-2% / 2-3%), Max drawdown (10% / 15% / 20%), Max leverage (1× / 1.5-2× / 2-3×)."
+  },
+  {
+    "id": "crisis_protocol",
+    "title": "Протокол действий при кризисе (Crisis Protocol)",
+    "category": "Риск-менеджмент",
+    "essence": "Строгий алгоритм принудительных действий при достижении критических просадок или наступлении рыночного кризиса, направленный на сохранение капитала и предотвращение эмоциональных ошибок.",
+    "formula": "Протокол при DD > 10%:\n1. Немедленно снизить размер на 50%.\n2. Закрыть самые слабые позиции.\n3. Увеличить hedge allocation.\n4. Анализ: что пошло не так?\n5. Пауза минимум 1 неделя.\n\nПротокол при DD > 15%:\n1. Закрыть ВСЕ позиции.\n2. Полный stop trading на 1 месяц.\n3. Полный аудит стратегии.\n4. Возврат с 0.5% риска.",
+    "interpretation": "Сохранение капитала первично (Survival > Profit). Принудительная пауза защищает от revenge trading (желания отыграться) и tilt. Возврат к торговле только с уменьшенным риском и после полного аудита.",
+    "sector_specifics": null,
+    "limitations": "Психологически крайне сложно закрыть все позиции в минусе и остановить торговлю. Пауза может привести к пропуску начала нового бычьего рынка. Требует наличия заранее написанных правил и, желательно, автоматизации.",
+    "related_concepts": [
+      "Drawdown Limits",
+      "Hedging",
+      "Stress Testing",
+      "Stop Trading",
+      "Emotional Tilt"
+    ],
+    "search_keywords": [
+      "протокол кризиса",
+      "crisis protocol",
+      "действия при просадке",
+      "stop trading",
+      "аудит стратегии",
+      "сохранение капитала",
+      "revenge trading",
+      "пауза в торговле"
+    ],
+    "source_text_excerpt": "При DD > 10%: снизить размер на 50%, пауза 1 неделя. При DD > 15%: закрыть ВСЕ позиции, полный stop trading на 1 месяц, полный аудит."
+  }
+]

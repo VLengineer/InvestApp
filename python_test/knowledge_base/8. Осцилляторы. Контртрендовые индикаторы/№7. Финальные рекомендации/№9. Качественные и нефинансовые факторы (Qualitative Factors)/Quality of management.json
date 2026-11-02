@@ -1,0 +1,196 @@
+[
+  {
+    "id": "management_quality_score",
+    "title": "Management Quality Score (Оценка качества менеджмента)",
+    "category": "Корпоративное управление / Качество менеджмента",
+    "essence": "Комплексная количественно-качественная оценка способности менеджмента создавать стоимость для акционеров через эффективную операционную деятельность, стратегическое видение и дисциплинированную аллокацию капитала. Показывает, насколько хорошо менеджмент исполняет свои обязанности и создает ли он долгосрочную ценность.",
+    "formula": "Упрощенная формула MQ Score: MQ Score = (ROIC Spread Score × 30%) + (Revenue CAGR Score × 20%) + (Relative TSR Score × 20%) + (Insider Ownership Score × 15%) + (CEO Tenure Score × 15%). Где: ROIC Spread = ROIC − WACC; Revenue CAGR = (Revenue_end ÷ Revenue_begin)^(1/n) − 1 за период работы CEO; Relative TSR = Company TSR − Market TSR; Insider Ownership = Management Shares ÷ Total Shares × 100%; CEO Tenure — срок работы текущего CEO. Качественные факторы: стратегическое видение, прозрачность коммуникации, культура компании, инновационность, управление кризисами.",
+    "interpretation": "> 80 баллов — отличный менеджмент (world-class, создает стоимость, outperformance +5-10% годовых). 60-80 баллов — хороший менеджмент (выше среднего, надежное управление). 40-60 баллов — средний менеджмент (исполняет обязанности, но без выдающихся результатов). < 40 баллов — плохой менеджмент (уничтожает стоимость, underperformance -5-15% годовых, высокая вероятность смены CEO). Отличный менеджмент заслуживает премию P/E 15-30%, плохой — дисконт 20-40%.",
+    "sector_specifics": "Технологический сектор: критичны vision & innovation, technical expertise, agility. Финансовый сектор: критичны risk management, regulatory compliance, capital allocation. Потребительский сектор: важны brand management, customer focus, operational efficiency. Промышленность: критичны operational excellence, cost management, safety culture, capital discipline.",
+    "limitations": "1) Оценка субъективна и зависит от качества доступной информации о стратегических решениях менеджмента. 2) Количественные метрики (ROIC, Revenue CAGR) могут быть высокими из-за благоприятной конъюнктуры рынка, а не качества менеджмента. 3) Краткосрочные неудачи могут не отражать долгосрочное качество менеджмента. 4) Сложно отделить вклад менеджмента от вклада отраслевых трендов или макроэкономических факторов. 5) Новый CEO может потребовать 3-5 лет для демонстрации реального track record. 6) В некоторых отраслях (коммодити, utilities) качество менеджмента менее важно, чем цена продукта или регуляторная среда.",
+    "related_concepts": [
+      "ROIC vs WACC Spread",
+      "Capital Allocation Quality",
+      "CEO Track Record",
+      "Insider Ownership",
+      "Corporate Governance",
+      "Total Shareholder Return (TSR)",
+      "Management Premium/Discount"
+    ],
+    "search_keywords": [
+      "management quality",
+      "качество менеджмента",
+      "mq score",
+      "оценка качества управления",
+      "management assessment",
+      "leadership quality",
+      "качество руководства",
+      "management quality score",
+      "оценка менеджмента",
+      "качество топ-менеджмента"
+    ],
+    "source_text_excerpt": "Management Quality Assessment — комплексная оценка способности менеджмента создавать стоимость для акционеров через эффективную операционную деятельность, стратегическое видение и дисциплинированную аллокацию капитала."
+  },
+  {
+    "id": "roic_wacc_spread",
+    "title": "ROIC vs WACC Spread (Спред создания стоимости)",
+    "category": "Финансовые метрики / Создание стоимости",
+    "essence": "Разница между рентабельностью инвестированного капитала (ROIC) и средневзвешенной стоимостью капитала (WACC). Показывает, создает ли компания стоимость для акционеров (ROIC > WACC) или уничтожает её (ROIC < WACC). Это ключевой количественный индикатор качества менеджмента и эффективности использования капитала.",
+    "formula": "Value Creation Spread = ROIC − WACC. Где ROIC (Return on Invested Capital) = NOPAT ÷ Invested Capital = EBIT × (1 − Tax Rate) ÷ (Total Equity + Total Debt − Cash); WACC (Weighted Average Cost of Capital) = (Cost of Equity × Equity Weight) + (Cost of Debt × (1 − Tax Rate) × Debt Weight). Альтернативно: ROIC Spread = ROIC − WACC в процентных пунктах.",
+    "interpretation": "ROIC − WACC > 5% — отличное создание стоимости (world-class менеджмент, заслуживает премию). ROIC − WACC 2-5% — хорошее создание стоимости (качественный менеджмент). ROIC − WACC 0-2% — нейтрально (менеджмент не создает и не уничтожает стоимость). ROIC − WACC < 0% — уничтожение стоимости (плохой менеджмент, капитал неэффективен). Устойчивый положительный спред в течение 5+ лет — признак экономического рва (economic moat) и качественного менеджмента.",
+    "sector_specifics": "Технологический сектор: высокий спред (15-25%) из-за низких капитальных затрат и сетевых эффектов. Потребительский сектор: умеренный спред (10-15%) благодаря силе бренда. Промышленность: низкий спред (5-10%) из-за высоких капитальных затрат. Финансовый сектор: спред 8-12% при качественном риск-менеджменте. Utilities: низкий спред (3-7%) из-за регулируемой доходности.",
+    "limitations": "1) ROIC может быть временно высоким из-за циклического пика или разовых выгод, а не качества менеджмента. 2) WACC зависит от рыночных условий (процентные ставки, risk premium), которые менеджмент не контролирует. 3) Бухгалтерские искажения (амортизация, гудвил) могут занижать ROIC. 4) Для компаний с отрицательным собственным капиталом ROIC теряет смысл. 5) Спред не учитывает качество роста — компания может иметь высокий ROIC, но расти за счет неэффективных M&A. 6) В краткосрочной перспективе менеджмент может жертвовать ROIC ради долгосрочных инвестиций (R&D, CAPEX), что временно снижает спред.",
+    "related_concepts": [
+      "ROIC (Return on Invested Capital)",
+      "WACC (Weighted Average Cost of Capital)",
+      "Economic Value Added (EVA)",
+      "Management Quality Score",
+      "Economic Moat",
+      "Capital Allocation Quality"
+    ],
+    "search_keywords": [
+      "roic wacc spread",
+      "спред roic wacc",
+      "value creation spread",
+      "создание стоимости",
+      "roic minus wacc",
+      "превышение roic над wacc",
+      "стоимость капитала",
+      "рентабельность инвестированного капитала",
+      "создает ли компания стоимость",
+      "уничтожение стоимости"
+    ],
+    "source_text_excerpt": "Value Creation = ROIC − WACC. ROIC > WACC на 5%+ → отличное создание стоимости. ROIC < WACC → уничтожение стоимости."
+  },
+  {
+    "id": "capital_allocation_quality",
+    "title": "Capital Allocation Quality (Качество аллокации капитала)",
+    "category": "Корпоративное управление / Качество менеджмента",
+    "essence": "Способность менеджмента эффективно распределять свободный денежный поток между различными вариантами использования (реинвестирование в бизнес, M&A, обратный выкуп акций, дивиденды, погашение долга) для максимизации долгосрочной стоимости акционеров. Качество аллокации капитала — один из важнейших навыков CEO и ключевой индикатор качества менеджмента.",
+    "formula": "Количественные индикаторы: 1) CAPEX Efficiency = Revenue Growth ÷ CAPEX-to-Revenue Ratio (>2.0 — отлично, 1.0-2.0 — хорошо, <1.0 — плохо). 2) M&A Success Rate = (Acquisitions with ROIC > WACC) ÷ Total Acquisitions × 100%. 3) Buyback Timing = Average Buyback Price vs Average Market Price (buyback ниже рынка — хорошо). 4) Dividend Sustainability = FCF Payout Ratio < 70%. 5) ROIC Hurdle Rate = минимальная приемлемая доходность новых инвестиций (обычно > WACC + 2-3%). Качественные факторы: дисциплинированный подход, долгосрочная ориентация, прозрачность принятия решений, отсутствие empire building.",
+    "interpretation": "Отличная аллокация: ROIC новых инвестиций > WACC + 3%, M&A success rate > 70%, buyback только при недооценке, дивиденды устойчивы (FCF Payout < 60%), долг управляется консервативно. Хорошая аллокация: ROIC > WACC, M&A success rate 50-70%, buyback умеренный, дивиденды стабильны. Плохая аллокация: ROIC < WACC, M&A success rate < 50%, empire building (крупные неэффективные поглощения), value-destructive buyback (выкуп на пике рынка), чрезмерные дивиденды за счет долга. Примеры отличной аллокации: Warren Buffett (Berkshire Hathaway), Satya Nadella (Microsoft). Примеры плохой: Adam Neumann (WeWork), Jeff Immelt (GE).",
+    "sector_specifics": "Технологический сектор: фокус на R&D и стратегические M&A (Microsoft: LinkedIn, GitHub). Потребительский сектор: фокус на brand building и дивиденды (P&G, Coca-Cola). Промышленность: фокус на CAPEX efficiency и debt repayment (Caterpillar). Финансовый сектор: фокус на risk management и dividend policy (JPMorgan). Startups/Growth: фокус на reinvestment и organic growth, минимальные дивиденды.",
+    "limitations": "1) Результаты аллокации капитала проявляются с лагом 3-7 лет, что затрудняет краткосрочную оценку. 2) M&A success rate сложно оценить — синергия может быть неочевидной. 3) Менеджмент может манипулировать метриками (например, классифицировать CAPEX как operating expense). 4) В некоторых отраслях (telecom, utilities) высокие дивиденды ожидаются рынком, даже если аллокация не оптимальна. 5) Buyback может быть выгоден с налоговой точки зрения, даже если timing не идеален. 6) Сложно отделить качество аллокации от благоприятной конъюнктуры рынка (все M&A успешны на бычьем рынке).",
+    "related_concepts": [
+      "Management Quality Score",
+      "ROIC vs WACC Spread",
+      "Free Cash Flow (FCF)",
+      "M&A Success Rate",
+      "Buyback Yield",
+      "Dividend Payout Ratio",
+      "Capital Expenditures (CAPEX)"
+    ],
+    "search_keywords": [
+      "capital allocation",
+      "аллокация капитала",
+      "распределение капитала",
+      "качество аллокации",
+      "capital allocation quality",
+      "allocation decisions",
+      "решения по аллокации",
+      "инвестиционный капитал",
+      "распределение свободного денежного потока",
+      "capital allocation framework"
+    ],
+    "source_text_excerpt": "Capital Allocation Decisions: Reinvestment in business, M&A strategy, Share buybacks, Dividend policy, Debt repayment. Capital Allocation Framework: ROIC hurdle rates, Disciplined approach, Long-term focus, Shareholder value creation."
+  },
+  {
+    "id": "ceo_track_record",
+    "title": "CEO Track Record (История исполнения CEO)",
+    "category": "Корпоративное управление / Качество менеджмента",
+    "essence": "История финансовых и стратегических результатов CEO за период его работы в компании, включая рост выручки, прибыльности, рыночной доли и создания стоимости для акционеров. Track record — ключевой индикатор способности CEO исполнять стратегию и создавать ценность, особенно важный при оценке новых CEO или рассмотрении вопроса о смене руководства.",
+    "formula": "Количественные метрики за период работы CEO: 1) Revenue CAGR = (Revenue_end ÷ Revenue_begin)^(1/n) − 1, где n — срок работы CEO в годах. 2) EPS CAGR = (EPS_end ÷ EPS_begin)^(1/n) − 1. 3) Total Shareholder Return (TSR) = (Price_end − Price_begin + Dividends) ÷ Price_begin × 100%. 4) Relative TSR = Company TSR − Market TSR (S&P 500 или отраслевой индекс). 5) Market Share Change = Current Market Share − Market Share at CEO start. 6) ROIC Trend = Average ROIC during CEO tenure. Качественные факторы: стратегические инициативы, культурная трансформация, успешные M&A, управление кризисами, инновации.",
+    "interpretation": "Отличный track record: Revenue CAGR > 15%, EPS CAGR > 12%, Relative TSR > +5% годовых, Market Share gaining, ROIC > WACC + 5%. Хороший track record: Revenue CAGR 10-15%, EPS CAGR 8-12%, Relative TSR 0-5% годовых, Market Share stable, ROIC > WACC. Средний track record: Revenue CAGR 5-10%, EPS CAGR 5-8%, Relative TSR -5-0% годовых, Market Share stable/declining. Плохой track record: Revenue CAGR < 5%, EPS CAGR < 5%, Relative TSR < -5% годовых, Market Share declining, ROIC < WACC. Оптимальный срок работы CEO: 5-15 лет (достаточно для реализации стратегии, но не слишком долго для избежания entrenchment).",
+    "sector_specifics": "Технологический сектор: акцент на innovation, digital transformation, market share gain (Satya Nadella в Microsoft: Revenue +161%, Market Cap +900% за 10 лет). Потребительский сектор: акцент на brand building, operational efficiency, dividend growth (Howard Schultz в Starbucks: создание experience). Финансовый сектор: акцент на risk management, regulatory compliance, crisis navigation (Jamie Dimon в JPMorgan: навигация через кризис 2008). Промышленность: акцент на operational excellence, cost management, capital discipline.",
+    "limitations": "1) Track record может быть обусловлен благоприятной конъюнктурой рынка, а не качеством CEO (все росли в 2010-2021). 2) Новый CEO требует 2-3 года для реализации своей стратегии, поэтому краткосрочный track record нерепрезентативен. 3) Предшественник мог заложить основу для успеха (или неудачи), что искажает оценку текущего CEO. 4) В циклических отраслях track record сильно зависит от точки входа/выхода (CEO, начавший на дне цикла, выглядит героем). 5) Некоторые стратегические решения (крупные M&A, R&D инвестиции) проявляются только через 5-10 лет. 6) CEO может уйти в момент пика, оставив преемнику спадающий бизнес.",
+    "related_concepts": [
+      "Management Quality Score",
+      "Revenue CAGR",
+      "EPS CAGR",
+      "Total Shareholder Return (TSR)",
+      "ROIC vs WACC Spread",
+      "CEO Tenure",
+      "Strategic Execution"
+    ],
+    "search_keywords": [
+      "ceo track record",
+      "история исполнения ceo",
+      "результаты ceo",
+      "ceo performance",
+      "track record ceo",
+      "достижения ceo",
+      "ceo success",
+      "успешность ceo",
+      "история ceo",
+      "ceo tenure performance"
+    ],
+    "source_text_excerpt": "Track Record: Financial Performance — Revenue growth, Profit margin trends, ROIC/ROE trends, FCF generation, Debt management. Strategic Execution — Strategy delivery, M&A success rate, Market share trends, Innovation track record, Crisis management."
+  },
+  {
+    "id": "management_premium_discount",
+    "title": "Management Premium/Discount (Премия/дисконт за качество менеджмента)",
+    "category": "Финансовый анализ / Влияние на оценку",
+    "essence": "Финансовое влияние качества менеджмента на мультипликаторы оценки (P/E, EV/EBITDA) и стоимость капитала (WACC). Компании с отличным менеджментом торгуются с премией к рынку благодаря предсказуемости роста, низкому риску и эффективной аллокации капитала. Компании с плохим менеджментом получают дисконт из-за высокого риска уничтожения стоимости.",
+    "formula": "Влияние на мультипликаторы: Excellent Management (MQ Score > 80) — премия P/E 15-30% vs рынок, EV/EBITDA 15-20x vs 10-12x рынок. Poor Management (MQ Score < 50) — дисконт P/E 20-40% vs рынок, EV/EBITDA 8-10x vs 10-12x рынок. Влияние на WACC: Excellent Management — снижение Cost of Equity на 1-2%, WACC на 1-2%. Poor Management — увеличение Cost of Equity на 2-4%, WACC на 2-4%. Влияние на DCF: Excellent Management — терминальный рост 3.5-4% vs 2-2.5% для Poor Management. Пример: Компания A (MQ 90/100, ROIC 20%, WACC 8%, P/E 25x) → Value $100B. Компания B (MQ 40/100, ROIC 6%, WACC 10%, P/E 12x) → Value $40B. Разница: 150% премия за отличный менеджмент!",
+    "interpretation": "Отличный менеджмент заслуживает: P/E 25-30x vs рыночные 15-20x, EV/EBITDA 15-20x vs рыночные 10-12x, WACC 8-9% vs рыночные 10-11%, терминальный рост 3.5-4% vs 2-2.5%. Средний менеджмент: P/E 18-22x, EV/EBITDA 12-15x, WACC 9-10%, терминальный рост 2.5-3%. Плохой менеджмент: P/E 10-15x, EV/EBITDA 8-10x, WACC 11-13%, терминальный рост 2%. Исторически компании с отличным менеджментом показывают outperformance +5-10% годовых vs рынок с меньшей волатильностью (15% vs 25%) и меньшими просадками (-30% vs -50% в кризис).",
+    "sector_specifics": null,
+    "limitations": "1) Премия за качество менеджмента уже может быть полностью отражена в текущей цене — покупка компании с отличным менеджментом по P/E 30x не гарантирует outperformance, если рост не оправдает ожиданий. 2) Премия может быть чрезмерной во время рыночных пузырей — компании с отличным менеджментом могут торговаться по P/E 40-50x, что создает риск коррекции. 3) Сложно точно количественно оценить качество менеджмента — премия 15% или 30%? Субъективность оценки. 4) Рынок может не сразу признать качество менеджмента — некоторые компании годами торгуются с дисконтом, несмотря на отличный track record (value opportunity). 5) Премия может исчезнуть при смене CEO или разрушении track record — компания, которая вчера торговалась по P/E 25x, завтра может упасть до P/E 12x при появлении проблем с менеджментом.",
+    "related_concepts": [
+      "Management Quality Score",
+      "P/E Ratio",
+      "EV/EBITDA",
+      "WACC",
+      "DCF Valuation",
+      "Terminal Growth Rate",
+      "Quality Premium",
+      "ROIC vs WACC Spread"
+    ],
+    "search_keywords": [
+      "management premium",
+      "премия за менеджмент",
+      "management discount",
+      "дисконт за плохой менеджмент",
+      "влияние менеджмента на оценку",
+      "management impact on valuation",
+      "quality premium",
+      "премия за качество",
+      "management impact on wacc",
+      "влияние менеджмента на стоимость капитала"
+    ],
+    "source_text_excerpt": "Отличный менеджмент → Premium: P/E premium 15-30%, Lower cost of capital (-1-2%), Higher terminal growth assumptions. Плохой менеджмент → Discount: P/E discount 20-40%, Higher cost of capital (+2-4%), Lower terminal growth. Разница: 150% premium за отличный менеджмент!"
+  },
+  {
+    "id": "management_red_flags",
+    "title": "Management Red Flags (Красные флаги плохого менеджмента)",
+    "category": "Корпоративное управление / Риски",
+    "essence": "Набор количественных и качественных индикаторов, сигнализирующих о серьезных проблемах с качеством менеджмента, которые могут привести к уничтожению стоимости акционеров. Красные флаги помогают инвесторам избегать компаний с токсичной культурой, неэффективной аллокацией капитала, этическими нарушениями или стратегическими ошибками.",
+    "formula": "Финансовые красные флаги: 1) ROIC < WACC в течение 5+ лет. 2) Revenue declining 3+ года подряд. 3) Consistent earnings misses (невыполнение guidance 3+ квартала подряд). 4) Aggressive accounting (частые restatements, изменение учетной политики).Governance красные флаги: 1) CEO = Chairman (отсутствие независимости). 2) Excessive CEO pay (> 300x median employee). 3) Related-party transactions. 4) Lack of transparency. 5) High management turnover (CFO/COO меняются каждые 1-2 года). Стратегические красные флаги: 1) Frequent strategy changes (смена стратегии каждый год). 2) Poor M&A track record (крупные write-downs). 3) Loss of market share 3+ года. 4) No clear competitive advantage. 5) Ignoring disruptive threats. Культурные красные флаги: 1) High employee turnover. 2) Poor Glassdoor ratings (< 3.0). 3) Ethical violations. 4) Regulatory fines. 5) Toxic culture.",
+    "interpretation": "Наличие 1-2 красных флагов — требует мониторинга и дополнительного анализа. Наличие 3-5 красных флагов — высокий риск, следует избегать инвестиций или рассмотреть short. Наличие 5+ красных флагов — критическая ситуация, высокая вероятность банкротства или смены CEO. Исторические примеры: WeWork (Adam Neumann) — poor governance, related-party transactions, no path to profitability → bankruptcy. GE (Jeff Immelt) — ROIC < WACC, poor M&A, loss of market share → stock -75%. Nokia — ignoring disruptive threats (iPhone) → market share 50% → 3%. Kodak — ignoring digital disruption → bankruptcy.",
+    "sector_specifics": "Технологический сектор: красные флаги — ignoring disruptive threats, losing key talent, poor innovation track record. Финансовый сектор: красные флаги — regulatory violations, poor risk management, excessive leverage. Потребительский сектор: красные флаги — brand damage, product recalls, losing market share to private labels. Промышленность: красные флаги — safety violations, environmental fines, poor capital discipline.",
+    "limitations": "1) Некоторые красные флаги могут быть временными (краткосрочный earnings miss из-за разовых факторов). 2) Высокий CEO pay может быть оправдан в компаниях с выдающимся track record. 3) Смена стратегии может быть необходимой в условиях disruption. 4) Related-party transactions не всегда вредны (могут быть эффективными). 5) Некоторые красные флаги субъективны (toxic culture, poor Glassdoor ratings). 6) Активистские инвесторы могут намеренно раздувать красные флаги для давления на менеджмент. 7) В некоторых отраслях (startups, biotech) финансовые красные флаги (negative ROIC, revenue decline) нормальны на ранних стадиях.",
+    "related_concepts": [
+      "Management Quality Score",
+      "Corporate Governance",
+      "ROIC vs WACC Spread",
+      "CEO Compensation",
+      "Related-Party Transactions",
+      "Earnings Quality",
+      "Strategic Execution"
+    ],
+    "search_keywords": [
+      "management red flags",
+      "красные флаги менеджмента",
+      "проблемы с менеджментом",
+      "плохой менеджмент",
+      "management warning signs",
+      "предупреждающие сигналы",
+      "toxic management",
+      "токсичный менеджмент",
+      "management risks",
+      "риски менеджмента",
+      "избегать инвестиций",
+      "management quality issues"
+    ],
+    "source_text_excerpt": "Красные флаги: Financial Red Flags — ROIC < WACC for 5+ years, Revenue declining for 3+ years, Consistent earnings misses, Aggressive accounting. Governance Red Flags — CEO = Chairman, Excessive CEO pay (> 300x median employee), Related-party transactions. Strategic Red Flags — Frequent strategy changes, Poor M&A track record, Loss of market share."
+  }
+]

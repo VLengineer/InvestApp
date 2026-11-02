@@ -1,0 +1,54 @@
+{
+  "kb_root": "/home/vladimir/Рабочий стол/psk-ai/python_test/knowledge_base",
+  "files_scanned": 390,
+  "files_ok": 386,
+  "files_invalid_json": [
+    [
+      "4. Индикаторы Билла Вильямса/№7. Правила/Rules for using the Bill Williams system.json",
+      "Invalid control character at (line 75, col 295)"
+    ],
+    [
+      "8. Осцилляторы. Контртрендовые индикаторы/№7. Финальные рекомендации/№1. Классические осцилляторы/TRIX.json",
+      "Invalid control character at (line 113, col 221)"
+    ],
+    [
+      "8. Осцилляторы. Контртрендовые индикаторы/№7. Финальные рекомендации/№2. Продвинутые и кастомные модификации Билла Вильямса/AO Histogram Smoothed.json",
+      "Expecting ',' delimiter (line 76, col 44)"
+    ],
+    [
+      "8. Осцилляторы. Контртрендовые индикаторы/№7. Финальные рекомендации/№4. Стратегии на основе индикаторов Билла Вильямса/AO-AC Momentum Sniper.json",
+      "Unterminated string starting at (line 148, col 23)"
+    ]
+  ],
+  "files_without_concepts": [],
+  "concepts_found": 6556,
+  "concepts_written": 4430,
+  "duplicates_content": 1974,
+  "duplicates_id": 152,
+  "ids_used_by_sections": [
+    [
+      "8. Осцилляторы. Контртрендовые индикаторы",
+      2845
+    ],
+    [
+      "3. Торговые стратегии для валютной пары USD - RUB",
+      683
+    ],
+    [
+      "1. Фундаментальный анализ. json",
+      540
+    ],
+    [
+      "2. Многофакторные торговые стратегии .json",
+      333
+    ],
+    [
+      "7. Классические индикаторы объёма",
+      22
+    ],
+    [
+      "4. Индикаторы Билла Вильямса",
+      7
+    ]
+  ]
+}

@@ -1,0 +1,243 @@
+"""Клиент Ollama (порт 11435) для эмбеддингов: Circuit Breaker + Retry + таймауты.
+
+Используется нативный REST API: POST /api/embed {"model", "input": str} -> {"embeddings": [[...]]}.
+Поле «input» и ответ «embeddings» (массив векторов) — актуальный контракт /api/embed
+(Ollama >= 0.6). Для обратной совместимости также распознаётся старый одновекторный
+ответ {"embedding": [...]} (например, от OpenAI-совместимых прокси или ранних версий).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import random
+import time
+from enum import StrEnum
+
+import httpx
+
+from app.core.exceptions import EmbeddingError
+from app.core.config import Settings
+
+logger = logging.getLogger(__name__)
+
+
+class BreakerState(StrEnum):
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+
+class PermanentEmbeddingError(EmbeddingError):
+    """Ошибка, повторять которую бессмысленно (например, HTTP 4xx от Ollama:
+    модель не загружена / неверный запрос). Retry и circuit breaker её не лечат."""
+
+
+class CircuitBreaker:
+    """Не заслоняем upstream бесконечными попытками: после N ошибок — пауза."""
+
+    def __init__(self, failure_threshold: int = 5, recovery_timeout_s: float = 30.0) -> None:
+        self.failure_threshold = failure_threshold
+        self.recovery_timeout_s = recovery_timeout_s
+        self._failures = 0
+        self._opened_at: float | None = None
+        self._lock = asyncio.Lock()
+
+    @property
+    def state(self) -> BreakerState:
+        if self._opened_at is None:
+            return BreakerState.CLOSED
+        if time.monotonic() - self._opened_at >= self.recovery_timeout_s:
+            return BreakerState.HALF_OPEN
+        return BreakerState.OPEN
+
+    async def acquire(self) -> None:
+        async with self._lock:
+            state = self.state
+            if state is BreakerState.OPEN:
+                raise EmbeddingError(
+                    "Ollama недоступна: circuit breaker открыт, повторите позже",
+                    details={"retry_after_s": round(self.recovery_timeout_s)},
+                )
+
+    async def record_success(self) -> None:
+        async with self._lock:
+            self._failures = 0
+            self._opened_at = None
+
+    async def record_failure(self) -> None:
+        async with self._lock:
+            self._failures += 1
+            if self._failures >= self.failure_threshold:
+                self._opened_at = time.monotonic()
+                logger.error("Circuit breaker переведён в OPEN (ошибок подряд: %d)", self._failures)
+
+
+class OllamaEmbeddingClient:
+    def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
+        self._settings = settings
+        self._owns_client = client is None
+        self._client = client or httpx.AsyncClient(
+            base_url=settings.ollama_base_url.rstrip("/") + "/",
+            timeout=httpx.Timeout(settings.request_timeout_s, connect=10.0),
+            limits=httpx.Limits(max_connections=settings.index_concurrency * 2, max_keepalive_connections=4),
+        )
+        self._breaker = CircuitBreaker(failure_threshold=max(self._settings.max_retries + 2, 5))
+
+    # ------------------------------ lifecycle --------------------------------
+    async def aclose(self) -> None:
+        if self._owns_client:
+            await self._client.aclose()
+
+    async def health(self) -> dict[str, str]:
+        url = f"{self._client.base_url}api/tags"
+        started = time.perf_counter()
+        logger.info("Ollama >>> GET %s (healthcheck)…", url)
+        try:
+            resp = await self._client.get("/api/tags", timeout=5.0)
+            resp.raise_for_status()
+            models = [m.get("name", "") for m in resp.json().get("models", [])]
+            wanted = self._settings.embedding_model
+            present = any(name == wanted or name.startswith(f"{wanted}:") for name in models)
+            elapsed = time.perf_counter() - started
+            if not present:
+                logger.error(
+                    "Ollama <<< (%.2fs, HTTP %d) ОТВЕТ: сервис жив, но модель '%s' НЕ загружена "
+                    "(доступны в ollama: %s). Выполните: docker exec -it ollama ollama pull \"%s\"",
+                    elapsed, resp.status_code, wanted, ", ".join(models) or "список пуст", wanted,
+                )
+                return {
+                    "status": "degraded",
+                    "detail": f"модель '{wanted}' не загружена в ollama; доступны: {', '.join(models) or 'нет'}",
+                }
+            logger.info(
+                "Ollama <<< (%.2fs, HTTP %d) ОТВЕТ: OK, модель '%s' загружена (всего моделей: %d)",
+                elapsed, resp.status_code, wanted, len(models),
+            )
+            return {"status": "ok", "detail": f"model={wanted}"}
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Ollama <<< (%.2fs) ОШИБКА healthcheck %s к %s: %s — Ollama недоступна "
+                "(проверьте, что контейнер ollama запущен и OLLAMA_BASE_URL верный)",
+                time.perf_counter() - started, exc.__class__.__name__, url, exc,
+            )
+            return {"status": "down", "detail": f"{exc.__class__.__name__}: {exc}"}
+
+    # ------------------------------- запросы ---------------------------------
+    @staticmethod
+    def _extract_vector(data: dict) -> list | None:
+        """Достаёт вектор из ответа /api/embed по обоим известным контрактам.
+
+        Актуальный (Ollama >= 0.6): {"embeddings": [[...], ...]} — массив векторов;
+        старый/прокси-вариант:          {"embedding": [...]}              — один вектор.
+        """
+        embeddings = data.get("embeddings")
+        if isinstance(embeddings, list) and embeddings:
+            first = embeddings[0]
+            if isinstance(first, list):
+                return first
+        vector = data.get("embedding")
+        if isinstance(vector, list) and vector:
+            return vector
+        return None
+
+    async def _embed_once(self, text: str) -> list[float]:
+        await self._breaker.acquire()
+        # Контракт /api/embed (в отличие от устаревшего /api/embeddings) — поле "input",
+        # а не "prompt"; сервер без "input" отвечает ошибкой валидации без поля эмбеддинга.
+        payload = {"model": self._settings.embedding_model, "input": text, "keep_alive": "5m"}
+        url = f"{self._client.base_url}api/embed"
+        started = time.perf_counter()
+        logger.info(
+            "Ollama >>> POST %s (model=%s, input %d симв., timeout=%.0fs): начало запроса…",
+            url, self._settings.embedding_model, len(text), self._settings.request_timeout_s,
+        )
+        try:
+            resp = await self._client.post("/api/embed", json=payload)
+            if resp.status_code >= 400:
+                # Ошибка upstream (например, «модель не загружена») НЕ считается сбоем
+                # сервиса: retry/circuit breaker бессмысленны — пробиваемся наружу сразу.
+                body = ""
+                try:
+                    body = resp.text[:300]
+                except Exception:  # noqa: BLE001
+                    pass
+                logger.error(
+                    "Ollama <<< HTTP %d за %.2fs: %s — повторные попытки не помогут, "
+                    "проверьте, что модель '%s' загружена (ollama pull)",
+                    resp.status_code, time.perf_counter() - started, body,
+                    self._settings.embedding_model,
+                )
+                raise PermanentEmbeddingError(
+                    f"Ollama вернула HTTP {resp.status_code}: {body}",
+                    details={"status_code": resp.status_code},
+                )
+            data = resp.json()
+            vector = self._extract_vector(data)
+        except httpx.HTTPError as exc:
+            await self._breaker.record_failure()
+            logger.error(
+                "Ollama <<< сетевая ошибка %s за %.2fs (%s): %s — проверьте доступность контейнера ollama",
+                exc.__class__.__name__, time.perf_counter() - started, url, exc,
+            )
+            raise EmbeddingError(f"Сетевая ошибка при обращении к Ollama: {exc.__class__.__name__}: {exc}") from exc
+        else:
+            elapsed = time.perf_counter() - started
+            if vector is None:
+                await self._breaker.record_failure()
+                keys = sorted(data.keys()) if isinstance(data, dict) else type(data).__name__
+                logger.error(
+                    "Ollama <<< ответ без полей 'embeddings'/'embedding' (за %.2fs); ключи ответа: %s",
+                    elapsed, keys,
+                )
+                raise EmbeddingError("Пустой или некорректный ответ эмбеддинга от Ollama")
+            if len(vector) != self._settings.embedding_dim:
+                await self._breaker.record_failure()
+                logger.error(
+                    "Ollama <<< размерность %d != ожидаемая %d — проверьте EMBEDDING_MODEL/EMBEDDING_DIM",
+                    len(vector), self._settings.embedding_dim,
+                )
+                raise EmbeddingError(
+                    f"Размерность эмбеддинга {len(vector)} != ожидаемой {self._settings.embedding_dim}",
+                    details={"got": len(vector), "expected": self._settings.embedding_dim},
+                )
+            await self._breaker.record_success()
+            logger.info("Ollama <<< OK за %.2fs: вектор размерности %d", elapsed, len(vector))
+            return [float(x) for x in vector]
+
+    async def embed(self, text: str) -> list[float]:
+        """Эмбеддинг одного текста с экспоненциальным backoff + jitter."""
+        attempt = 0
+        while True:
+            try:
+                return await self._embed_once(text)
+            except PermanentEmbeddingError as exc:
+                logger.error("Ollama: несгораемая ошибка (HTTP 4xx), повтор бессмысленен: %s", exc)
+                raise
+            except EmbeddingError as exc:
+                attempt += 1
+                if attempt > self._settings.max_retries:
+                    logger.error(
+                        "Ollama: все %d попыток исчерпаны, последняя ошибка: %s",
+                        self._settings.max_retries + 1, exc,
+                    )
+                    raise
+                delay = min(
+                    self._settings.retry_max_backoff_s,
+                    self._settings.retry_backoff_base_s * (2 ** (attempt - 1)),
+                ) * (0.5 + random.random())
+                logger.warning(
+                    "Эмбеддинг: попытка %d/%d через %.2fs (причина: %s)",
+                    attempt, self._settings.max_retries + 1, delay, exc,
+                )
+                await asyncio.sleep(delay)
+
+    async def embed_many(self, texts: list[str]) -> list[list[float]]:
+        """Последовательная пакетная обработка («по очереди») софт-ограничена семафором."""
+        semaphore = asyncio.Semaphore(self._settings.index_concurrency)
+
+        async def _one(text: str) -> list[float]:
+            async with semaphore:
+                return await self.embed(text)
+
+        return await asyncio.gather(*(_one(t) for t in texts))

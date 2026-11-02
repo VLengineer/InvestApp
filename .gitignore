@@ -1,0 +1,51 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# --- Vue / Node ---
+node_modules/
+npm-debug.log
+yarn-error.log
+dist/
+.nuxt/
+.output/
+
+# --- Переменные окружения и секреты ---
+.env
+.env.local
+.env.*.local
+*.env
+.env.production
+.env.development
+
+# --- Логи и временные файлы ---
+*.log
+logs/
+tmp/
+temp/
+
+# --- IDE и редакторы ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- ОС ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- Git ---
+.git/
