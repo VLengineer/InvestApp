@@ -124,3 +124,38 @@ class CompanyProfileRepository:
                 limit,
             )
         return [dict(r) for r in rows]
+
+    async def search_for_news(
+        self,
+        vector_pg: str,
+        limit: int = 5,
+        sector_filter: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Косинусный поиск компаний под текст новости (эндпоинт /news/search-companies).
+
+        Отличие от ``search_by_vector``: возвращаем полный профиль (JSONB-колонки),
+        чтобы сервис собрал ``CompanyResult.profile`` без второго запроса к БД,
+        и поддерживаем необязательный фильтр по сектору. Колонки ``sector``/
+        ``sub_sector`` в схеме ``init_db/03_init_company_profiles.sql`` отсутствуют,
+        поэтому фильтруем по склеенному тексту профиля ``embed_text`` (ILIKE).
+        """
+        async with self._database.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT company_name, ticker, figi, description, business_model,
+                       market_position, competitors_text AS competitors,
+                       keywords_for_embedding, related_entities, news_triggers,
+                       key_products, key_figures, historical_patterns,
+                       embedding_model, embedding_dim,
+                       1 - (embedding <=> $1::vector) AS similarity
+                FROM company_profiles
+                WHERE embedding IS NOT NULL
+                  AND ($2::text IS NULL OR embed_text ILIKE '%' || $2 || '%')
+                ORDER BY embedding <=> $1::vector
+                LIMIT $3
+                """,
+                vector_pg,
+                sector_filter,
+                limit,
+            )
+        return [dict(r) for r in rows]

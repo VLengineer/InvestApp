@@ -18,6 +18,7 @@ from app.db.database import Database
 from app.repositories.company_profile_repository import CompanyProfileRepository
 from app.repositories.document_repository import DocumentRepository
 from app.services.company_profiles_service import CompanyProfilesService
+from app.services.company_search_service import CompanySearchService
 from app.services.indexing_service import IndexingService
 from app.services.kb_reader import KnowledgeBaseReader
 from app.workers.task_registry import TaskRegistry
@@ -62,6 +63,8 @@ class Container:
     # --- микросервис company_profiles (код: app/services/company_profiles_service.py) ---
     company_profile_repository: CompanyProfileRepository
     company_profiles: CompanyProfilesService
+    # --- семантический поиск компаний по новостям (/news/search-companies) ---
+    company_search: CompanySearchService
     _closed: bool = field(default=False, repr=False)
 
     @classmethod
@@ -83,10 +86,14 @@ class Container:
         # Company profiles: cp.json -> эмбеддинги -> таблица company_profiles
         company_profile_repository = CompanyProfileRepository(database)
         company_profiles = CompanyProfilesService(settings, embedder, company_profile_repository)
+        # Семантический поиск компаний по новостям (POST /news/search-companies):
+        # переиспользует тот же репозиторий и Ollama-клиент, что и company_profiles.
+        company_search = CompanySearchService(settings, embedder, company_profile_repository)
         return cls(
             settings, database, embedder, reader, repository, registry, indexing,
             news_repository, news_analyzer,
             company_profile_repository, company_profiles,
+            company_search,
         )
 
     async def startup(self) -> None:

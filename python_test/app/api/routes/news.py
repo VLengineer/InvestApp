@@ -6,17 +6,25 @@
 POST /news/analyze — принимает новость {source, title, content, ts} и сохраняет
 её в market_news_ml_dataset. Вызывается из сценария n8n, который подписывает
 запрос единым JWT-токеном (webhook ``news_analizer`` ← Vue-фронтенд).
+
+POST /news/search-companies — семантический поиск компаний-эмитентов по тексту
+новости через эмбеддинги (Ollama) и pgvector (таблица company_profiles).
+Код сервиса — app/services/company_search_service.py.
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.deps import ContainerDep, NewsAnalyzerDep
+from app.api.deps import CompanySearchDep, ContainerDep, NewsAnalyzerDep
 from app.core.security import Principal, Scope, require_scope
 from app.news_analyzer.schemas import NewsAnalyzeRequest, NewsAnalyzeResponse
+from app.schemas.news import NewsSearchRequest, NewsSearchResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/news", tags=["news_analyzer"])
 
@@ -48,3 +56,32 @@ async def news_health(
     _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
 ) -> dict[str, Any]:
     return await container.news_repository.health()
+
+
+@router.post(
+    "/search-companies",
+    response_model=NewsSearchResponse,
+    summary="Семантический поиск компаний по тексту новости (JWT, scope rag:read)",
+    description=(
+        "Текст новости эмбеддится через Ollama, затем выполняется косинусный "
+        "поиск (pgvector <=>) по таблице company_profiles. Возвращаются компании "
+        "с similarity >= min_similarity (не более top_k) и их полными профилями. "
+        "sector_filter — необязательная подстрока, фильтрует по тексту профиля (ILIKE). "
+        "Перед использованием загрузите профили: POST /company-profiles/ingest."
+    ),
+)
+async def search_companies_by_news(
+    request: NewsSearchRequest,
+    service: CompanySearchDep,
+    _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
+) -> NewsSearchResponse:
+    """1) эмбеддинг news_text через Ollama; 2) pgvector-поиск; 3) фильтр по порогу."""
+    try:
+        return await service.search_by_news(request)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        # EmbeddingError (Ollama недоступна/модель не загружена) или ошибка БД —
+        # единый понятный 500, как в /company-profiles/search.
+        logger.exception("News search failed")
+        raise HTTPException(status_code=500, detail=f"Поиск компаний по новости не удался: {exc}") from exc
