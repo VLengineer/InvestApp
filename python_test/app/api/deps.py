@@ -14,6 +14,7 @@ from app.services.kb_reader import KnowledgeBaseReader
 from app.workers.task_registry import TaskRegistry
 from app.news_analyzer.repository import NewsRepository
 from app.news_analyzer.service import NewsAnalyzerService
+from app.services.company_search_service import CompanySearchService
 
 
 def get_container(request: Request) -> Container:
@@ -60,3 +61,11 @@ def get_news_analyzer_service(container: ContainerDep) -> NewsAnalyzerService:
 
 NewsRepositoryDep = Annotated[NewsRepository, Depends(get_news_repository)]
 NewsAnalyzerDep = Annotated[NewsAnalyzerService, Depends(get_news_analyzer_service)]
+
+
+# ---------------- Семантический поиск компаний по новостям -------------------
+def get_company_search_service(container: ContainerDep) -> CompanySearchService:
+    return container.company_search
+
+
+CompanySearchDep = Annotated[CompanySearchService, Depends(get_company_search_service)]
