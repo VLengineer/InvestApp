@@ -1,6 +1,7 @@
 .env
 .env.local
-*.env.*
+# *.env.* тоже игнорировался — из-за этого .env.example не попадал в git
+!.env.example
 .vscode/
 .idea/
 *.log
