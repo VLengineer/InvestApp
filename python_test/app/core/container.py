@@ -1,7 +1,10 @@
 """Composition Root: сборка графа зависимостей приложения (паттерн DI-контейнера).
 
 Никакой модуль нижнего слоя не импортирует этот файл — зависимости внедряются
-снаружи, что делает слои тестируемыми (подмена моками в conftest.py).
+снаружи (app/main.py), что делает слои тестируемыми (подмена моками в тестах).
+
+Расположение согласовано с остальными микросервисами проекта: корневой
+``/workspace/app/core/container.py`` содержит такой же Composition Root.
 """
 
 from __future__ import annotations
@@ -12,7 +15,9 @@ from dataclasses import dataclass, field
 from app.clients.ollama import OllamaEmbeddingClient
 from app.core.config import Settings
 from app.db.database import Database
+from app.repositories.company_profile_repository import CompanyProfileRepository
 from app.repositories.document_repository import DocumentRepository
+from app.services.company_profiles_service import CompanyProfilesService
 from app.services.indexing_service import IndexingService
 from app.services.kb_reader import KnowledgeBaseReader
 from app.workers.task_registry import TaskRegistry
@@ -54,6 +59,9 @@ class Container:
     # --- микросервис news_analyzer (код: python_test/news_analyzer/) ---
     news_repository: NewsRepository
     news_analyzer: NewsAnalyzerService
+    # --- микросервис company_profiles (код: app/services/company_profiles_service.py) ---
+    company_profile_repository: CompanyProfileRepository
+    company_profiles: CompanyProfilesService
     _closed: bool = field(default=False, repr=False)
 
     @classmethod
@@ -72,15 +80,20 @@ class Container:
         # Микросервис анализа новостей: репозиторий берёт живой пул у Database
         news_repository = NewsRepository(database)
         news_analyzer = NewsAnalyzerService(news_repository)
+        # Company profiles: cp.json -> эмбеддинги -> таблица company_profiles
+        company_profile_repository = CompanyProfileRepository(database)
+        company_profiles = CompanyProfilesService(settings, embedder, company_profile_repository)
         return cls(
             settings, database, embedder, reader, repository, registry, indexing,
             news_repository, news_analyzer,
+            company_profile_repository, company_profiles,
         )
 
     async def startup(self) -> None:
         await self.database.connect()
         await self.database.ensure_schema()
         await self.news_repository.ensure_schema()
+        await self.company_profile_repository.ensure_schema()
         logger.info("Схема БД проверена; эмбеддинг-модель: %s", self.settings.embedding_model)
         # Явно проверяем Ollama при старте и пишем результат в лог контейнера —
         # чтобы «ollama не вызывается / модель не загружена» было видно сразу,

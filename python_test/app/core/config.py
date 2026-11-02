@@ -99,6 +99,17 @@ class Settings(BaseSettings):
     index_concurrency: int = Field(default=2, ge=1, le=16)
     max_chunk_chars: int = Field(default=8_000, ge=256)
 
+    # --------------------------- Company profiles -----------------------------
+    # Файл профилей компаний для микросервиса company_profiles
+    # (env: COMPANY_PROFILES_JSON; по умолчанию python_test/company_profiles/cp.json).
+    company_profiles_json: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parents[2] / "company_profiles" / "cp.json"
+    )
+
+    @property
+    def company_profiles_json_path(self) -> Path:
+        return self.company_profiles_json
+
     @field_validator("log_level")
     @classmethod
     def _upper_log_level(cls, v: str) -> str:

@@ -6,8 +6,8 @@ from typing import Annotated
 
 from fastapi import Depends, HTTPException, Request, status
 
-from app.container import Container
 from app.core.config import Settings, get_settings
+from app.core.container import Container
 from app.repositories.document_repository import DocumentRepository
 from app.services.indexing_service import IndexingService
 from app.services.kb_reader import KnowledgeBaseReader
