@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.routes import api_router
-from app.container import Container
+from app.core.container import Container
 from app.core.config import Settings
 from app.main import SecurityHeadersMiddleware
 from app.services.indexing_service import IndexingService

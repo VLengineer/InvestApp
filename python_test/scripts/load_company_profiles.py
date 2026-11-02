@@ -28,7 +28,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from app.services.company_profiles_service import ingest_company_profiles  # noqa: E402
+from app.clients.ollama import OllamaEmbeddingClient  # noqa: E402
+from app.core.config import get_settings  # noqa: E402
+from app.db.database import Database  # noqa: E402
+from app.repositories.company_profile_repository import CompanyProfileRepository  # noqa: E402
+from app.services.company_profiles_service import CompanyProfilesService  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
 logger = logging.getLogger("load_company_profiles")
@@ -43,9 +47,23 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    result = asyncio.run(ingest_company_profiles(args.json))
+    result = asyncio.run(_run_ingest(args.json))
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if result["failed"] == 0 else 1
+
+
+async def _run_ingest(json_path: str) -> dict:
+    """Собрать граф зависимостей (как в Container), выполнить ингест, корректно закрыться."""
+    settings = get_settings()
+    database = Database(settings)
+    embedder = OllamaEmbeddingClient(settings)
+    try:
+        await database.connect()
+        service = CompanyProfilesService(settings, embedder, CompanyProfileRepository(database))
+        return await service.ingest(json_path)
+    finally:
+        await embedder.aclose()
+        await database.close()
 
 
 if __name__ == "__main__":
