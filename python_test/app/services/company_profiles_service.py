@@ -120,10 +120,17 @@ def _join_list(items: Any, sep: str = ", ") -> str:
         parts: list[str] = []
         for it in items:
             if isinstance(it, dict):
-                # related_entities / key_figures: name + type/position
-                name = it.get("name") or it.get("title") or ""
-                extra = it.get("position") or it.get("type") or it.get("role") or ""
-                parts.append(f"{name} ({extra})".strip("() "))
+                # related_entities / key_figures: name + type/position.
+                # скобки балансируем явно: strip("() ") срезал и закрывающую ")"
+                # из "(Газпромбанк (competitor)" — получалось "Газпромбанк (competitor"
+                name = str(it.get("name") or it.get("title") or "").strip()
+                extra = str(
+                    it.get("position") or it.get("type") or it.get("role") or ""
+                ).strip()
+                if name and extra:
+                    parts.append(f"{name} ({extra})")
+                elif name or extra:
+                    parts.append(name or extra)
             else:
                 parts.append(str(it))
         return sep.join(p for p in parts if p)

@@ -44,7 +44,8 @@ def read_ddl_statements(path: str = COMPANY_PROFILES_DDL_PATH) -> list[str]:
     statements: list[str] = []
     pos = 0
     block_re = re.compile(
-        r"CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\b.*?\$\$.*?\$\$\s*(?:LANGUAGE\s+\w+)?\s*;",
+        r"CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\b.*?\$\$.*?\$\$\s*(?:LANGUAGE\s+\w+)?"
+        r"(?:\s+(?:NOT\s+NULL|STRICT|VOLATILE|IMMUTABLE|SECURITY\s+(?:DEFINER|INVOKER)))*\s*;",
         re.IGNORECASE | re.DOTALL,
     )
     while pos < len(sql):
@@ -53,7 +54,9 @@ def read_ddl_statements(path: str = COMPANY_PROFILES_DDL_PATH) -> list[str]:
         statements.extend(s.strip() for s in chunk.split(";") if s.strip())
         if not match:
             break
-        statements.append(match.group().strip())
+        # завершающая ";" не входит в оператор — Postgres/asyncpg принимают и так,
+        # а тестам удобнее сверять границы блока без неё
+        statements.append(match.group().rstrip().rstrip(";").strip())
         pos = match.end()
 
     return [s for s in statements if not s.startswith("--")]
