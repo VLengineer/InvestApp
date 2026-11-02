@@ -1,4 +1,4 @@
-_-- Расширение pgvector
+
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS company_profiles (
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS company_profiles (
     embedding_text  TEXT        NOT NULL,
     
     -- Вектор: 1024 для bge-m3, 768 для nomic-embed-text
-    embedding       vector(1024),
+    embedding       vector(768),
     
     -- Метаданные для версионирования модели
     embedding_model VARCHAR(64) NOT NULL DEFAULT 'bge-m3',
