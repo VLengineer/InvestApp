@@ -1,22 +1,21 @@
 """Сервис company_profiles: загрузка cp.json, склейка текста, эмбеддинги, запись в БД.
 
-Логика полностью повторяет подход RAG-модуля:
+Логика повторяет подход RAG-модуля (слои routes -> services -> repositories):
   1) читаем источник (cp.json),
-  2) формируем "склеенный" текст профиля по приоритету полей,
-  3) получаем вектор через Ollama (embeddinggemma-2, dim=768),
-  4) upsert-им строки в таблицу company_profiles (pgvector).
+  2) формируем «склеенный» текст профиля по приоритету полей,
+  3) получаем вектор через Ollama (async-клиент app/clients/ollama.py),
+  4) upsert-им строки в таблицу company_profiles (pgvector) через репозиторий.
 """
 from __future__ import annotations
 
 import json
 import logging
-import os
+from pathlib import Path
 from typing import Any
 
-import asyncpg
-
-from app.config import settings
-from app.services.embeddings import embedding_client
+from app.core.config import Settings
+from app.clients.ollama import OllamaEmbeddingClient
+from app.repositories.company_profile_repository import CompanyProfileRepository
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +25,8 @@ NEWS_TRIGGER_CATEGORIES = ("positive", "negative", "neutral")
 # --------------------------------------------------------------------------- #
 # 1. Чтение JSON
 # --------------------------------------------------------------------------- #
-def load_company_profiles(path: str | None = None) -> list[dict[str, Any]]:
-    path = path or settings.company_profiles_json
+def load_company_profiles(settings: Settings, path: str | None = None) -> list[dict[str, Any]]:
+    path = path or str(settings.company_profiles_json_path)
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     if isinstance(data, dict):  # допускаем {"profiles": [...]}
@@ -107,121 +106,69 @@ def vector_to_pg(vec: list[float]) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# 4. Загрузка профилей в БД (по подобию rag ingest)
+# 4. Сервис (используется из app/api/routes/company_profiles.py)
 # --------------------------------------------------------------------------- #
-UPSERT_SQL = """
-INSERT INTO company_profiles (
-    company_name, ticker, figi,
-    description, business_model, market_position, target_audience, geography,
-    competitors, regulatory_dependencies, technology_stack, historical_patterns,
-    keywords_for_embedding, related_entities, news_triggers, key_products,
-    key_figures, financial_metrics_of_interest, correlation_factors,
-    embedding, embedding_model, embedding_dim, embed_text,
-    created_at, updated_at
-) VALUES (
-    $1, $2, $3,
-    $4, $5, $6, $7, $8,
-    $9::jsonb, $10, $11::jsonb, $12,
-    $13::jsonb, $14::jsonb, $15::jsonb, $16::jsonb,
-    $17::jsonb, $18::jsonb, $19::jsonb,
-    $20::vector, $21, $22, $23,
-    now(), now()
-)
-ON CONFLICT (figi) DO UPDATE SET
-    company_name                = EXCLUDED.company_name,
-    ticker                      = EXCLUDED.ticker,
-    description                 = EXCLUDED.description,
-    business_model              = EXCLUDED.business_model,
-    market_position             = EXCLUDED.market_position,
-    target_audience             = EXCLUDED.target_audience,
-    geography                   = EXCLUDED.geography,
-    competitors                 = EXCLUDED.competitors,
-    regulatory_dependencies     = EXCLUDED.regulatory_dependencies,
-    technology_stack            = EXCLUDED.technology_stack,
-    historical_patterns         = EXCLUDED.historical_patterns,
-    keywords_for_embedding      = EXCLUDED.keywords_for_embedding,
-    related_entities            = EXCLUDED.related_entities,
-    news_triggers               = EXCLUDED.news_triggers,
-    key_products                = EXCLUDED.key_products,
-    key_figures                 = EXCLUDED.key_figures,
-    financial_metrics_of_interest = EXCLUDED.financial_metrics_of_interest,
-    correlation_factors         = EXCLUDED.correlation_factors,
-    embedding                   = EXCLUDED.embedding,
-    embedding_model             = EXCLUDED.embedding_model,
-    embedding_dim               = EXCLUDED.embedding_dim,
-    embed_text                  = EXCLUDED.embed_text,
-    updated_at                  = now()
-"""
+class CompanyProfilesService:
+    """Ингест cp.json и семантический поиск по профилям компаний."""
 
+    def __init__(
+        self,
+        settings: Settings,
+        embedder: OllamaEmbeddingClient,
+        repository: CompanyProfileRepository,
+    ) -> None:
+        self._settings = settings
+        self._embedder = embedder
+        self._repository = repository
 
-async def ensure_table(pool: asyncpg.Pool) -> None:
-    ddl_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "company_profiles", "03_init_company_profiles.sql"
-    )
-    with open(ddl_path, encoding="utf-8") as f:
-        sql = f.read()
-    async with pool.acquire() as conn:
-        for stmt in filter(None, (s.strip() for s in sql.split(";"))):
-            if not stmt.startswith("--"):
-                await conn.execute(stmt)
+    async def ingest(self, json_path: str | None = None) -> dict[str, Any]:
+        """Основной процесс: cp.json -> эмбеддинги -> таблица company_profiles."""
+        profiles = load_company_profiles(self._settings, json_path)
+        await self._repository.ensure_schema()
 
-
-async def get_pool() -> asyncpg.Pool:
-    return await asyncpg.create_pool(dsn=settings.dsn, min_size=1, max_size=5)
-
-
-async def ingest_company_profiles(json_path: str | None = None) -> dict[str, Any]:
-    """Основной процесс: cp.json -> эмбеддинги -> таблица company_profiles."""
-    profiles = load_company_profiles(json_path)
-    pool = await get_pool()
-    try:
-        await ensure_table(pool)
         inserted = updated = failed = 0
-        async with pool.acquire() as conn:
-            for prof in profiles:
-                figi = (prof.get("figi") or "").strip() or None
-                text = build_embed_text(prof)
-                try:
-                    embedding = embedding_client.embed(text)
-                except Exception as exc:  # noqa: BLE001
-                    logger.error("Embedding failed for %s: %s", figi or prof.get("company_name"), exc)
-                    failed += 1
-                    continue
+        for prof in profiles:
+            figi = (prof.get("figi") or "").strip() or None
+            text = build_embed_text(prof)
+            try:
+                embedding = await self._embedder.embed(text)
+            except Exception as exc:  # noqa: BLE001
+                logger.error("Embedding failed for %s: %s", figi or prof.get("company_name"), exc)
+                failed += 1
+                continue
 
-                exists = await conn.fetchval(
-                    "SELECT 1 FROM company_profiles WHERE figi = $1", figi
-                )
-                await conn.execute(
-                    UPSERT_SQL,
-                    prof.get("company_name"),
-                    prof.get("ticker"),
-                    figi,
-                    prof.get("description"),
-                    prof.get("business_model"),
-                    prof.get("market_position"),
-                    prof.get("target_audience"),
-                    prof.get("geography"),
-                    json.dumps(prof.get("competitors"), ensure_ascii=False),
-                    prof.get("regulatory_dependencies"),
-                    json.dumps(prof.get("technology_stack"), ensure_ascii=False),
-                    prof.get("historical_patterns"),
-                    json.dumps(prof.get("keywords_for_embedding"), ensure_ascii=False),
-                    json.dumps(prof.get("related_entities"), ensure_ascii=False),
-                    json.dumps(prof.get("news_triggers"), ensure_ascii=False),
-                    json.dumps(prof.get("key_products"), ensure_ascii=False),
-                    json.dumps(prof.get("key_figures"), ensure_ascii=False),
-                    json.dumps(prof.get("financial_metrics_of_interest"), ensure_ascii=False),
-                    json.dumps(prof.get("correlation_factors"), ensure_ascii=False),
-                    vector_to_pg(embedding),
-                    embedding_client.model,
-                    len(embedding),
-                    text,
-                )
-                if exists:
-                    updated += 1
-                else:
-                    inserted += 1
-                logger.info("Upserted profile: %s (%s)", prof.get("company_name"), figi)
+            existed = await self._repository.exists(figi)
+            values = (
+                prof.get("company_name"),
+                prof.get("ticker"),
+                figi,
+                prof.get("description"),
+                prof.get("business_model"),
+                prof.get("market_position"),
+                prof.get("target_audience"),
+                prof.get("geography"),
+                json.dumps(prof.get("competitors"), ensure_ascii=False),
+                prof.get("regulatory_dependencies"),
+                json.dumps(prof.get("technology_stack"), ensure_ascii=False),
+                prof.get("historical_patterns"),
+                json.dumps(prof.get("keywords_for_embedding"), ensure_ascii=False),
+                json.dumps(prof.get("related_entities"), ensure_ascii=False),
+                json.dumps(prof.get("news_triggers"), ensure_ascii=False),
+                json.dumps(prof.get("key_products"), ensure_ascii=False),
+                json.dumps(prof.get("key_figures"), ensure_ascii=False),
+                json.dumps(prof.get("financial_metrics_of_interest"), ensure_ascii=False),
+                json.dumps(prof.get("correlation_factors"), ensure_ascii=False),
+                vector_to_pg(embedding),
+                self._settings.embedding_model,
+                len(embedding),
+                text,
+            )
+            await self._repository.upsert_profile(values)
+            if existed:
+                updated += 1
+            else:
+                inserted += 1
+            logger.info("Upserted profile: %s (%s)", prof.get("company_name"), figi)
 
         return {
             "total": len(profiles),
@@ -229,27 +176,20 @@ async def ingest_company_profiles(json_path: str | None = None) -> dict[str, Any
             "updated": updated,
             "failed": failed,
         }
-    finally:
-        await pool.close()
+
+    async def list_profiles(self, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
+        return await self._repository.list_profiles(limit=limit, offset=offset)
+
+    async def get_profile(self, figi: str) -> dict[str, Any] | None:
+        return await self._repository.get_by_figi(figi)
+
+    async def search_similar(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        """Косинусный поиск по эмбеддингу профиля (для эндпоинта /company-profiles/search)."""
+        embedding = await self._embedder.embed(f"search: {query}")
+        return await self._repository.search_by_vector(vector_to_pg(embedding), limit)
 
 
-async def search_similar(query: str, limit: int = 5) -> list[dict[str, Any]]:
-    """Косинусный поиск по эмбеддингу профиля (для эндпоинта /search)."""
-    embedding = embedding_client.embed(query)
-    pool = await get_pool()
-    try:
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT company_name, ticker, figi, description,
-                       1 - (embedding <=> $1::vector) AS similarity
-                FROM company_profiles
-                ORDER BY embedding <=> $1::vector
-                LIMIT $2
-                """,
-                vector_to_pg(embedding),
-                limit,
-            )
-        return [dict(r) for r in rows]
-    finally:
-        await pool.close()
+# Путь к cp.json по умолчанию (корень микросервиса python_test/company_profiles/cp.json)
+DEFAULT_CP_JSON = (
+    Path(__file__).resolve().parents[2] / "company_profiles" / "cp.json"
+)
