@@ -16,7 +16,7 @@ from typing import Any
 import asyncpg
 
 from app.config import settings
-from app.embeddings import embedding_client
+from app.services.embeddings import embedding_client
 
 logger = logging.getLogger(__name__)
 

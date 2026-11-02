@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import pathlib
 from dataclasses import dataclass, field
 
 
@@ -24,7 +25,12 @@ class Settings:
     # --- Путь к файлу профилей компаний ---
     company_profiles_json: str = os.getenv(
         "COMPANY_PROFILES_JSON",
-        os.path.join(os.path.dirname(os.path.dirname(__file__)), "company_profiles", "cp.json"),
+        # python_test/company_profiles/cp.json (на два уровня выше app/config.py)
+        str(
+            pathlib.Path(__file__).resolve().parents[1]  # корень микросервиса: python_test/
+            / "company_profiles"
+            / "cp.json"
+        ),
     )
 
     @property

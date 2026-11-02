@@ -13,7 +13,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from app.company_profiles_service import (
+from app.services.company_profiles_service import (
     get_pool,
     ingest_company_profiles,
     search_similar,
