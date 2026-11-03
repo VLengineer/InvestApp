@@ -56,6 +56,8 @@ _GET_OLDEST_WAITING_TASK_SQL = """
     ORDER BY created_at ASC
     LIMIT 1
 """
+# Счётчик waiting-задач — ограничение глубины очереди для фонового генератора.
+_COUNT_WAITING_TASKS_SQL = "SELECT count(*)::int AS cnt FROM tasks WHERE status = 'waiting'"
 # c) Атомарный захват waiting -> processing (исключает гонку при репликации воркера).
 _CLAIM_TASK_SQL = """
     UPDATE tasks
@@ -168,6 +170,11 @@ class SchedulerRepository:
         """Самая старая waiting-задача (FIFO), или None — очередь пуста."""
         row = await self._pool.fetchrow(_GET_OLDEST_WAITING_TASK_SQL)
         return row["id"] if row else None
+
+    async def count_waiting_tasks(self) -> int:
+        """Число задач со статусом 'waiting' — для лимита фонового генератора задач."""
+        row = await self._pool.fetchrow(_COUNT_WAITING_TASKS_SQL)
+        return int(row["cnt"]) if row else 0
 
     async def claim_task(self, task_id: UUID) -> dict[str, Any] | None:
         """Переводит waiting-задачу в 'processing'; None — если её уже забрали."""

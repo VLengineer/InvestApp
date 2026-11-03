@@ -97,6 +97,27 @@ class Settings(BaseSettings):
         ),
     )
 
+    # ---------------------- Фоновый генератор задач (producer) ----------------
+    # Каждые task_generation_interval_s создаёт новую задачу со статусом 'waiting',
+    # если планировщик активен и очередь не переполнена (см. max_waiting_tasks).
+    task_generation_enabled: bool = Field(
+        default=True,
+        description="Фоновое создание задач каждые N секунд (env: TASK_GENERATION_ENABLED)",
+    )
+    task_generation_interval_s: int = Field(
+        default=300,
+        ge=1,
+        description="Период создания новых waiting-задач, сек (env: TASK_GENERATION_INTERVAL_S; 300 = 5 минут)",
+    )
+    max_waiting_tasks: int = Field(
+        default=10,
+        ge=1,
+        description=(
+            "Максимум задач со статусом 'waiting' в очереди: пока счётчик >= этого "
+            "значения, новые задачи НЕ создаются (env: MAX_WAITING_TASKS)"
+        ),
+    )
+
     @field_validator("jwt_issuer", "jwt_audience", mode="before")
     @classmethod
     def _empty_str_to_none(cls, v: object) -> object:
