@@ -111,6 +111,11 @@ async function loadHistory(figi: string) {
   }
 }
 
+/**
+ * Смена FIGI через селектор. Первичный FIGI грузится в initDashboard()
+ * (watch не вызывается на инициальное значение), поэтому здесь guard
+ * `figi === prev` защищает от двойной загрузки только при явных повторах.
+ */
 watch(selectedFigi, async (figi, prev) => {
   if (!figi || figi === prev) return
   // 1. История по REST (последние 500)
@@ -118,14 +123,7 @@ watch(selectedFigi, async (figi, prev) => {
   // 2. Переподписка WebSocket (сервер сам отпишет от предыдущего FIGI)
   subscribe(figi)
   // 3. URL (?figi=) + localStorage — чтобы ссылкой можно было делиться
-  if (route.query.figi !== figi) {
-    router.replace({ query: { ...route.query, figi } })
-  }
-  try {
-    localStorage.setItem(LS_KEY, figi)
-  } catch {
-    /* приватный режим — игнорируем */
-  }
+  persistFigi(figi)
 })
 
 /* ------------------- Модалка новости ------------------- */
@@ -144,14 +142,23 @@ async function openNewsModal(newsId: string) {
 
 /* ------------------- Инициализация ------------------- */
 
-onMounted(async () => {
+/**
+ * Фиги, которые есть в списке БД, но по которым initial-data вернул 404
+ * (данные только что удалили/мигрировали — гонка между /figis и /initial-data).
+ * Нужны, чтобы не зациклить onMounted: без этого дашборд падал в белый экран
+ * при пустом history у валидного FIGI.
+ */
+const brokenFigis = ref<Set<string>>(new Set())
+
+async function initDashboard(): Promise<void> {
   try {
     figis.value = await fetchFigis()
   } catch (e) {
     error.value = `Не удалось получить список FIGI: ${e instanceof Error ? e.message : String(e)}`
-  } finally {
     figisLoading.value = false
+    return
   }
+  figisLoading.value = false
   if (figis.value.length === 0) return
 
   // Приоритет выбора: ?figi= из URL → localStorage → первый из списка
@@ -162,14 +169,34 @@ onMounted(async () => {
   } catch {
     /* noop */
   }
-  const initial =
-    fromUrl && figis.value.includes(fromUrl)
-      ? fromUrl
-      : stored && figis.value.includes(stored)
-        ? stored
-        : figis.value[0]
+  const candidates = [fromUrl, stored, ...figis.value]
+  const initial = candidates.find(
+    (f) => f && figis.value.includes(f) && !brokenFigis.value.has(f),
+  )
+  if (!initial) return
   selectedFigi.value = initial
-})
+
+  // Явная первичная загрузка + подписка WS.
+  // Watch на selectedFigi срабатывает только при ИЗМЕНЕНИИ значения, поэтому
+  // стартовый FIGI грузим здесь — иначе страница рендерилась бы пустой.
+  await loadHistory(initial)
+  subscribe(initial)
+  persistFigi(initial)
+}
+
+/** Сохранение выбранного FIGI в URL (?figi=) и localStorage (шаринг ссылки). */
+function persistFigi(figi: string) {
+  if (route.query.figi !== figi) {
+    router.replace({ query: { ...route.query, figi } })
+  }
+  try {
+    localStorage.setItem(LS_KEY, figi)
+  } catch {
+    /* приватный режим — игнорируем */
+  }
+}
+
+onMounted(() => initDashboard())
 </script>
 
 <template>
