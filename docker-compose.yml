@@ -160,6 +160,26 @@ services:
     networks:
       - app_net
 
+  mcp-server:
+    build: ./mcp-server
+    container_name: project_mcp
+    ports:
+      - "9000:9000"
+    volumes:
+      # 1. Монтируем весь проект для чтения и записи файлов
+      - ./:/workspace 
+      # 2. Монтируем docker.sock для управления контейнерами
+      - /var/run/docker.sock:/var/run/docker.sock 
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Важно: MCP должен запускаться после того, как поднимутся backend и frontend,
+    # иначе docker.from_env() может не найти контейнеры при первом вызове
+    depends_on:
+      - backend-frontend
+      - frontend
+      - python_test
+      - scheduler_service
+
 volumes:
   ollama_data:
   n8n_data:
