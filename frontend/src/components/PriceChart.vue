@@ -7,6 +7,11 @@
  *  - real-time: метод upsert(item) добавляет/перезаписывает свечу без перезагрузки.
  * Императивная работа с chart API (данные приходят потоком), поэтому
  * watch только на полный набор истории.
+ *
+ * Синхронизация с осцилляторами (Задача 3): компонент создаёт общий
+ * «барабан времени» useChartSync, отдаёт его в Dashboard → OscillatorCharts,
+ * транслирует изменения own time-scale (зум/скролл) в общее окно и
+ * подсвечивает кроссхэйр по времени из осцилляторов (setCrosshairPosition).
  */
 import { onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import {
@@ -21,6 +26,7 @@ import {
 } from 'lightweight-charts'
 import type { MarketDataItem } from '../types/market'
 import { candleTime, hasAiSummary, toCandles, upsertByTime, type CandlePoint } from '../utils/chartData'
+import { useChartSync, type ChartSync } from '../composables/useChartSync'
 
 const props = defineProps<{
   /** История записей для конкретного FIGI (до 500). */
@@ -30,7 +36,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** Клик по маркеру новости: id записи (для GET /api/market/news/{id}). */
   (e: 'marker-click', newsId: string): void
+  /** Общий барабан времени готов — Dashboard пробрасывает его в осцилляторы. */
+  (e: 'sync-ready', sync: ChartSync): void
 }>()
+
+/** Собственный барабан синхронизации (Dashboard заберёт его через sync-ready). */
+const sync = useChartSync()
 
 const containerEl = ref<HTMLElement | null>(null)
 const chart = shallowRef<IChartApi | null>(null)
@@ -139,7 +150,7 @@ function upsert(item: MarketDataItem) {
   }
 }
 
-defineExpose({ upsert })
+defineExpose({ upsert, sync, setOscillatorCrosshair })
 
 function onChartClick(param: MouseEventParams) {
   if (!param.time) return
@@ -148,7 +159,70 @@ function onChartClick(param: MouseEventParams) {
   if (marker) emit('marker-click', marker.newsId)
 }
 
+/* ------------------ Синхронизация окна с осцилляторами -------------------- */
+
+/** true, пока окно меняется программно (защита от эха событий подписки). */
+let applyingExternal = false
+
+/** Последнее окно, опубликованное этим графиком (фильтр собственного эха). */
+let lastPublished: [number, number] = [-1, -1]
+
+/** Пересчёт видимого окна time-scale → индексы барабана и в sync. */
+function publishWindowFromTimeScale() {
+  const c = chart.value
+  if (!c || sync.drum.value.length === 0) return
+  const ts = c.timeScale()
+  const range = ts.getVisibleRange()
+  if (!range) return
+  const from = typeof range.from === 'number' ? range.from : null
+  const to = typeof range.to === 'number' ? range.to : null
+  if (from === null || to === null) return
+  const drum = sync.drum.value
+  let s = drum.findIndex((t) => t >= from)
+  if (s < 0) s = 0
+  let e = drum.findIndex((t) => t >= to)
+  if (e < 0) e = drum.length
+  // Не публикуем «краевые» значения по умолчанию — иначе каждое событие
+  // подписки будет бесконечно гонять эхо окно↔time-scale.
+  if (s === 0 && e === drum.length) return
+  lastPublished = [s, e]
+  sync.setWindow(s, e)
+}
+
+/** Применить окно из sync к time-scale (когда источник — осциллятор). */
+function applyWindowToTimeScale(start: number, end: number) {
+  const c = chart.value
+  const drum = sync.drum.value
+  if (!c || drum.length === 0) return
+  const from = drum[Math.min(start, drum.length - 1)]
+  const to = drum[Math.min(Math.max(end - 1, start), drum.length - 1)]
+  applyingExternal = true
+  c.timeScale().setVisibleRange({ from: from as Time, to: to as Time })
+  requestAnimationFrame(() => { applyingExternal = false })
+}
+
+/** Кроссхэйр от осцилляторов: подсветить точку на свечном графике.
+ *  setCrosshairPosition/clearCrosshairPosition есть в runtime Lightweight
+ *  Charts 4, но отсутствуют в типах ISeriesApi — узкий адаптер с проверкой. */
+interface CrosshairPositionApi {
+  setCrosshairPosition?: (price: number, time: Time) => void
+  clearCrosshairPosition?: () => void
+}
+
+function setOscillatorCrosshair(time: number | null) {
+  const series = candleSeries.value as (ISeriesApi<'Candlestick'> & CrosshairPositionApi) | null
+  if (!series) return
+  if (time === null) {
+    series.clearCrosshairPosition?.()
+    return
+  }
+  const candle = candles.value.find((cnd) => cnd.time === time) ?? candles.value[candles.value.length - 1]
+  if (!candle) return
+  series.setCrosshairPosition?.(candle.close, candle.time as Time)
+}
+
 let resizeObserver: ResizeObserver | null = null
+let windowUnsub: (() => void) | null = null
 
 onMounted(() => {
   const el = containerEl.value
@@ -186,6 +260,21 @@ onMounted(() => {
 
   c.subscribeClick(onChartClick)
 
+  // Зум/скролл свечного графика → общее окно → осцилляторы
+  c.timeScale().subscribeVisibleLogicalRangeChange(() => {
+    if (applyingExternal) return
+    publishWindowFromTimeScale()
+  })
+
+  // Окно из осцилляторов → time-scale этого графика (своё эхо не применяем)
+  windowUnsub = sync.onWindowChange((s, e) => {
+    if (lastPublished[0] === s && lastPublished[1] === e) return
+    applyWindowToTimeScale(s, e)
+  })
+
+  // Отдаём общий барабан наружу (Dashboard → OscillatorCharts)
+  emit('sync-ready', sync)
+
   // Ресайз без лишних анимаций — только пересчёт размеров
   resizeObserver = new ResizeObserver(() => {
     if (containerEl.value) c.applyOptions({ width: containerEl.value.clientWidth })
@@ -196,6 +285,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  windowUnsub?.()
   resizeObserver?.disconnect()
   chart.value?.remove()
   chart.value = null

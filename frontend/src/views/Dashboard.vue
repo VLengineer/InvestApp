@@ -25,6 +25,7 @@ import { fetchFigis, fetchInitialData, fetchNewsById } from '../api/market'
 import { useWebSocket } from '../composables/useWebSocket'
 import { useRevealOnScroll } from '../composables/useRevealOnScroll'
 import type { MarketDataItem } from '../types/market'
+import type { ChartSync } from '../composables/useChartSync'
 
 const route = useRoute()
 const router = useRouter()
@@ -43,6 +44,9 @@ const loadingHistory = ref(false)
 const error = ref('')
 
 const priceChartRef = ref<InstanceType<typeof PriceChart> | null>(null)
+
+/** Общий барабан времени (свечи ⇄ осцилляторы): зум/скролл/кроссхэйр. */
+const chartSync = shallowRef<ChartSync | null>(null)
 
 /* Модалка новости */
 const modalNews = shallowRef<MarketDataItem | null>(null)
@@ -223,13 +227,24 @@ onMounted(() => initDashboard())
 
     <template v-if="selectedFigi">
       <!-- График цены с маркерами новостей -->
-      <PriceChart ref="priceChartRef" :data="visibleHistory" class="reveal" @marker-click="openNewsModal" />
+      <PriceChart
+        ref="priceChartRef"
+        :data="visibleHistory"
+        class="reveal"
+        @marker-click="openNewsModal"
+        @sync-ready="chartSync = $event"
+      />
 
       <!-- Аналитика ИИ (последняя запись с саммари) -->
       <AICard :data="visibleHistory" class="reveal" />
 
-      <!-- Осцилляторы -->
-      <OscillatorCharts :data="visibleHistory" class="reveal" />
+      <!-- Осцилляторы: общий барабан времени + кроссхэйр-синхронизация со свечами -->
+      <OscillatorCharts
+        :data="visibleHistory"
+        :sync="chartSync"
+        class="reveal"
+        @crosshair-time="priceChartRef?.setOscillatorCrosshair($event)"
+      />
 
       <!-- Объёмы и стакан -->
       <VolumeOrderbook :data="visibleHistory" class="reveal" />
