@@ -6,8 +6,7 @@ EXPOSE 8888
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --no-audit --no-fund --registry=https://registry.npmmirror.com
-
+RUN npm install --registry=https://mirrors.cloud.tencent.com/npm/
 COPY . .
 
 EXPOSE 5173
