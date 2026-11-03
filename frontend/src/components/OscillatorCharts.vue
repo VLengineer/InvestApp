@@ -18,7 +18,19 @@
 import { onBeforeUnmount, onMounted, shallowRef, watch } from 'vue'
 import * as echarts from 'echarts/core'
 import { LineChart, BarChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, DataZoomComponent } from 'echarts/components'
+// TitleComponent обязателен: в buildOption используется option.title (заголовки
+// мини-графиков). Без него ECharts 5.6 падает на setOption:
+// "Component title is used but not imported".
+// DataZoomSliderComponent + DataZoomInsideComponent регистрируют подтипы
+// dataZoom; «голый» DataZoomComponent не регистрирует ни один из них и опция
+// dataZoom приводила к "Component dataZoom.hidden is used but not imported".
+import {
+  GridComponent,
+  TooltipComponent,
+  TitleComponent,
+  DataZoomSliderComponent,
+  DataZoomInsideComponent,
+} from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsOption } from 'echarts'
 import type { MarketDataItem } from '../types/market'
@@ -32,8 +44,51 @@ import {
 } from '../composables/useChartSync'
 import { useFullscreen } from '../composables/useFullscreen'
 
-// Регистрируем только нужные модули ECharts — меньше бандл, быстрее загрузка
-echarts.use([LineChart, BarChart, GridComponent, TooltipComponent, DataZoomComponent, CanvasRenderer])
+// Регистрируем только нужные модули ECharts — меньше бандл, быстрее загрузка.
+// ВАЖНО: DataZoomSliderComponent/DataZoomInsideComponent обязательны — они
+// регистрируют подтипы 'dataZoom.slider'/'dataZoom.inside'; сам по себе
+// DataZoomComponent подтипы не регистрирует (в 5.6 он и не экспортируется),
+// а subTypeDefaulter без них не срабатывает → ошибка
+// "Component dataZoom.hidden is used but not imported" на первом же setOption.
+echarts.use([
+  LineChart,
+  BarChart,
+  GridComponent,
+  TooltipComponent,
+  TitleComponent,
+  DataZoomSliderComponent,
+  DataZoomInsideComponent,
+  CanvasRenderer,
+])
+
+/**
+ * Тип dataZoom для программного окна синхронизации.
+ * В ECharts 5.6 (модульная сборка echarts/core) подтипа `hidden` НЕ
+ * существует — его использование роняло все графики осцилляторов.
+ * Берём 'inside': view-класс у него отсутствует, панель не рисуется,
+ * при этом startValue/endValue работают как скрытый программный зум.
+ */
+const SYNC_DATAZOOM_TYPE = 'inside'
+
+/** Опция dataZoom для текущего окна [start; end] (end — exclusive индекс). */
+function syncDataZoomOption(start: number, end: number) {
+  return {
+    dataZoom: [
+      {
+        type: SYNC_DATAZOOM_TYPE,
+        xAxisIndex: 0,
+        // собственные жесты внутри mini-chart отключены: окно приводит
+        // только общий барабан useChartSync (см. attachWheelZoomScroll)
+        zoomOnMouseWheel: false,
+        moveOnMouseMove: false,
+        moveOnMouseWheel: false,
+        preventDefaultMouseMove: false,
+        startValue: start,
+        endValue: Math.max(start + 1, end - 1),
+      },
+    ],
+  }
+}
 
 const props = defineProps<{
   data: MarketDataItem[]
@@ -119,7 +174,6 @@ type EChartInstance = ReturnType<typeof echarts.init>
 
 const wrapEl = shallowRef<HTMLElement | null>(null)
 const instances = new Map<string, EChartInstance>()
-const resizeHandlers: Array<() => void> = []
 
 /** Числовое значение поля или null (в ECharts null разрывает линию). */
 function num(item: MarketDataItem, field: keyof MarketDataItem): number | null {
@@ -156,10 +210,9 @@ function buildOption(def: ChartDef, items: MarketDataItem[]): EChartsOption {
       textStyle: { fontSize: 11 },
       formatter: ((params: unknown) => formatTooltip(def, items, params)) as never,
     },
-    // Программный зум окном useChartSync (startValue/endValue задаются извне)
-    dataZoom: [
-      { type: 'hidden', xAxisIndex: 0, startValue: 0, endValue: Math.max(1, labels.length - 1) },
-    ],
+    // Программный зум окном useChartSync (startValue/endValue задаются извне).
+    // type:'hidden' в ECharts 5.6 не поддерживается — см. SYNC_DATAZOOM_TYPE.
+    dataZoom: syncDataZoomOption(0, Math.max(2, labels.length)).dataZoom,
     xAxis: {
       type: 'category',
       data: labels,
@@ -245,9 +298,7 @@ let windowUnsub: (() => void) | null = null
 /** Применить текущее окно синхронизации ко всем инстансам. */
 function applyWindow(start: number, end: number) {
   for (const inst of instances.values()) {
-    inst.setOption({
-      dataZoom: [{ type: 'hidden', xAxisIndex: 0, startValue: start, endValue: Math.max(start + 1, end - 1) }],
-    })
+    inst.setOption(syncDataZoomOption(start, end))
   }
 }
 
@@ -293,6 +344,35 @@ function renderAll(items: MarketDataItem[]) {
   applyWindow(sync.startIdx.value, sync.endIdx.value)
 }
 
+/* ------------------------------ Ресайзы ------------------------------------ */
+// ECharts запрещает вызывать resize()/setOption() «во время основного
+// процесса» (внутри собственного update-цикла экземпляра). ResizeObserver и
+// подписка на window 'resize' могут сработать ровно в такой момент (например,
+// из layout-эффектов после setOption в mounted/watch) — отсюда ошибка
+// "`resize` should not be called during main process" и пустые графики.
+// Решение: ресайз откладывается на requestAnimationFrame + микрозадача
+// (rAF выполняется вне update-цикла) и батчится в один вызов на все инстансы.
+
+let resizeRaf = 0
+
+function resizeAllCharts() {
+  for (const inst of instances.values()) {
+    // защита от диспоза между кадрами
+    if (!inst.isDisposed()) inst.resize({ animation: { duration: 0 } })
+  }
+}
+
+function scheduleResizeAll() {
+  if (resizeRaf) return // уже запланировано — батчим все события в один кадр
+  resizeRaf = requestAnimationFrame(() => {
+    resizeRaf = 0
+    // микрозадача гарантирует выход из текущего main-process ECharts
+    Promise.resolve().then(resizeAllCharts)
+  })
+}
+
+let resizeObserver: ResizeObserver | null = null
+
 onMounted(() => {
   syncPaletteFromTokens()
   const wrap = wrapEl.value
@@ -303,12 +383,18 @@ onMounted(() => {
     const inst = echarts.init(el, undefined, { renderer: 'canvas' })
     instances.set(def.key, inst)
     hub.register(inst)
-    const onResize = () => inst.resize()
-    window.addEventListener('resize', onResize)
-    resizeHandlers.push(onResize)
     bindInteractions(el, inst)
   }
   renderAll(props.data)
+
+  // Отслеживаем размеры контейнеров графиков (сетка, fullscreen, адаптив) —
+  // вместо прямого inst.resize() в обработчике (см. комментарий выше).
+  resizeObserver = new ResizeObserver(scheduleResizeAll)
+  for (const def of CHART_DEFS) {
+    const el = wrap.querySelector<HTMLElement>(`[data-chart="${def.key}"]`)
+    if (el) resizeObserver.observe(el)
+  }
+  window.addEventListener('resize', scheduleResizeAll)
 
   // Подписка на общее окно (зум/скролл со свечного графика или другого осциллятора)
   windowUnsub = activeSync().onWindowChange(applyWindow)
@@ -318,8 +404,11 @@ onBeforeUnmount(() => {
   if (windowUnsub) windowUnsub()
   for (const fn of cleanups) fn()
   cleanups.length = 0
-  for (const fn of resizeHandlers) window.removeEventListener('resize', fn)
-  resizeHandlers.length = 0
+  if (resizeRaf) cancelAnimationFrame(resizeRaf)
+  resizeRaf = 0
+  window.removeEventListener('resize', scheduleResizeAll)
+  resizeObserver?.disconnect()
+  resizeObserver = null
   for (const inst of instances.values()) inst.dispose()
   instances.clear()
 })
