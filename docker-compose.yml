@@ -115,8 +115,31 @@ services:
       VITE_N8N_WEBHOOK_MODE: "${N8N_WEBHOOK_MODE:-test}"
       VITE_N8N_AUTH_TOKEN: "${N8N_AUTH_TOKEN:-}"
       N8N_PROXY_TARGET: "${N8N_CONTAINER_URL:-http://n8n:5678/}"
+      # BFF дашборда: Vite проксирует /api/* и /ws/market-updates на контейнер
+      # backend-frontend внутри сети app_net (паттерн тот же, что для n8n)
+      MARKET_API_PROXY_TARGET: "http://backend-frontend:${MARKET_API_PORT:-8300}"
     depends_on:
       - n8n
+      - backend-frontend
+    networks:
+      - app_net
+
+  # BFF финансового дашборда (frontend → FastAPI → PostgreSQL):
+  # REST /api/market/* + WebSocket /ws/market-updates, порт 8300 в сети app_net.
+  backend-frontend:
+    build:
+      context: ./backend-frontend
+      dockerfile: Dockerfile
+    container_name: backend-frontend
+    restart: unless-stopped
+    ports:
+      # Swagger: http://localhost:8300/docs (наружу только с локальной машины)
+      - "${MARKET_BIND_IP:-127.0.0.1}:${MARKET_API_PORT:-8300}:8300"
+    env_file:
+      - ./backend-frontend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - app_net
 

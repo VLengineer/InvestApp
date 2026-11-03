@@ -20,7 +20,7 @@ const PROXY_BASE = '/n8n-api/'
 const n8nBase = (import.meta.env.VITE_N8N_BASE_URL || 'http://n8n:5678/').replace(/\/+$/, '') + '/'
 
 // Браузер не может разрешить docker-имена вида «n8n» — это одно слово без точек.
-function isUnresolvableInBrowser(hostname) {
+function isUnresolvableInBrowser(hostname: string) {
   return !hostname.includes('.') && hostname !== 'localhost'
 }
 
@@ -28,7 +28,7 @@ function isUnresolvableInBrowser(hostname) {
 // 'proxy' — всегда через /n8n-api/, 'direct' — всегда напрямую на base.
 const urlModePref = import.meta.env.VITE_N8N_URL_MODE || 'auto'
 
-function resolveBaseUrl(base) {
+function resolveBaseUrl(base: string) {
   if (typeof window === 'undefined') return base
   if (urlModePref === 'proxy') return PROXY_BASE
   if (urlModePref === 'direct') return base
@@ -64,7 +64,7 @@ const mode = ref(import.meta.env.VITE_N8N_WEBHOOK_MODE === 'live' ? 'live' : 'te
 
 const webhookUrl = computed(() => `${effectiveBase}${mode.value === 'test' ? 'webhook-test' : 'webhook'}/${webhookPath}`)
 
-function setMode(m) {
+function setMode(m: string) {
   mode.value = m
 }
 </script>
