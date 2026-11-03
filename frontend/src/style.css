@@ -1,3 +1,24 @@
+/* ============================================================
+   Глобальные стили. Tailwind CSS v4 + кастомная цветовая схема
+   из брендбука (gold / platinum / background / text).
+   Подключение через @tailwindcss/vite-плагин (vite.config.js уже
+   содержит plugins: [vue()]; tailwind добавлен ниже отдельным
+   конфигом не требуется — v4 работает через @import).
+   ============================================================ */
+@import 'tailwindcss';
+
+@theme {
+  --color-gold: #d4af37;
+  --color-gold-light: #f4e5b8;
+  --color-gold-dark: #a8871c;
+  --color-platinum: #e5e4e2;
+  --color-platinum-light: #f5f5f4;
+  --color-platinum-dark: #b8b7b5;
+  --color-background: #fafafa;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #6b6b6b;
+}
+
 *,
 *::before,
 *::after {
@@ -7,7 +28,10 @@
 body {
   margin: 0;
   font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
-  background: #f5f7fa;
-  color: #1c2330;
+  /* Брендбук дашборда: светлый фон #FAFAFA, основной текст #1A1A1A.
+     Существующая страница NewsAnalyzer использует собственные scoped-стили
+     и от этих значений не зависит. */
+  background: #fafafa;
+  color: #1a1a1a;
   line-height: 1.5;
 }

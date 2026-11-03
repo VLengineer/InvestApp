@@ -1,5 +1,8 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
+// Tailwind CSS v4 — через официальный vite-плагин (цвета брендбука заданы
+// в src/style.css блоком @theme).
+import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode: viteMode }) => {
@@ -10,7 +13,7 @@ export default defineConfig(({ mode: viteMode }) => {
   const marketProxyTarget = env.MARKET_API_PROXY_TARGET || 'http://localhost:8300'
 
   return {
-    plugins: [vue()],
+    plugins: [vue(), tailwindcss()],
     server: {
       host: true,      // слушать 0.0.0.0 внутри контейнера
       port: 5173,
