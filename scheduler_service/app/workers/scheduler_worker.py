@@ -54,6 +54,19 @@ class SchedulerWorker:
         # Общий AsyncClient переиспользует соединения (keep-alive); создаём лениво,
         # чтобы клиент жил внутри запущенного event loop.
         self._client: httpx.AsyncClient | None = None
+        # Диагностика «почему ничего не запускается»: периодический INFO-пульс
+        # (при LOG_LEVEL=INFO молчаливый idle выглядит как зависший сервис).
+        self._last_heartbeat_mono: float = 0.0
+
+    def _heartbeat(self, reason: str) -> None:
+        """INFO-сообщение о простое не чаще, чем раз в heartbeat_log_every_s."""
+        interval = self._settings.heartbeat_log_every_s
+        if interval <= 0:
+            return
+        now = asyncio.get_running_loop().time()
+        if now - self._last_heartbeat_mono >= interval:
+            self._last_heartbeat_mono = now
+            logger.info("Воркер активен, задача не запускается: %s", reason)
 
     # ------------------------------ Жизненный цикл ----------------------------
     async def start(self) -> None:
@@ -108,12 +121,17 @@ class SchedulerWorker:
         # Шаг 0: активен ли планировщик?
         is_active = await self._repo.get_is_active()
         if not is_active:
+            self._heartbeat("планировщик остановлен (is_active=false) — жду POST /api/v1/scheduler/start")
             await asyncio.sleep(self._settings.inactive_check_interval_s)
             return
 
         # Шаг a: есть ли прямо сейчас задача в processing? Ждём её итога.
         current = await self._repo.get_processing_task()
         if current is not None:
+            logger.debug(
+                "В работе уже есть задача %s (с %s) — жду callback/таймаут, новые не стартуют",
+                current["id"], current["created_at"],
+            )
             final_status = await self._wait_for_callback(current["id"], started_at=current["created_at"])
             await self._handle_final_status(current["id"], final_status)
             return
@@ -122,6 +140,18 @@ class SchedulerWorker:
         task_id = await self._repo.get_next_waiting_task()
         if task_id is None:
             # Очередь пуста: короткий idle-polling, новых задач нет.
+            # Именно этот случай в проде выглядит как «тихий» сервис: ни одной
+            # INFO-строки в логах, хотя всё работает. Пульс + счётчики в БД это лечат.
+            counts = await self._repo.count_tasks_by_status()
+            await self._repo.update_queue_counters(
+                waiting_count=counts["waiting"],
+                processing_count=counts["processing"],
+                log_message="очередь пуста: нет задач со статусом 'waiting'",
+            )
+            self._heartbeat(
+                f"очередь пуста (waiting=0; completed={counts['completed']}, error={counts['error']}) — "
+                "нужно создать задачу (POST /api/v1/scheduler/test-trigger или INSERT status='waiting')"
+            )
             await asyncio.sleep(self._settings.idle_poll_interval_s)
             return
 
@@ -218,6 +248,7 @@ class SchedulerWorker:
             # Чужая/пережитая processing: отсчитываем таймаут от её created_at.
             age = (datetime.now(timezone.utc) - started_at).total_seconds()
             waited = max(0, int(age))
+        last_heartbeat_mono = asyncio.get_running_loop().time()
         while True:
             status = await self._repo.get_task_status(task_id)
             if status in (TaskStatus.COMPLETED.value, TaskStatus.ERROR.value):
@@ -234,5 +265,15 @@ class SchedulerWorker:
                 )
                 await self._repo.update_task_status(task_id, TaskStatus.ERROR.value)
                 return TaskStatus.ERROR.value
+            # Раз в heartbeat_log_every_s напоминаем в INFO, что мы НЕ зависли:
+            # иначе ожидание callback выглядит как «воркер молчит и ничего не делает».
+            hb = self._settings.heartbeat_log_every_s
+            now_mono = asyncio.get_running_loop().time()
+            if hb > 0 and now_mono - last_heartbeat_mono >= hb:
+                last_heartbeat_mono = now_mono
+                logger.info(
+                    "Задача %s: жду callback от n8n (выполняется %d с из %d с; следующая стартует после итога)",
+                    task_id, waited, timeout,
+                )
             await asyncio.sleep(poll)
             waited += poll

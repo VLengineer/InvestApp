@@ -88,6 +88,14 @@ class Settings(BaseSettings):
     # Страховка от «зависшей» processing, если callback так и не пришёл (n8n упал):
     # по истечении таймаута задача помечается error, цикл берёт следующую waiting.
     task_wait_timeout_s: int = Field(default=3600, ge=60, description="Максимум ожидания callback, сек")
+    heartbeat_log_every_s: int = Field(
+        default=60,
+        ge=0,
+        description=(
+            "Период INFO-сообщения «пульса» воркера (очередь пуста/планировщик выключен). "
+            "0 = только DEBUG. Без него при LOG_LEVEL=INFO сервис выглядит «молчащим»."
+        ),
+    )
 
     @field_validator("jwt_issuer", "jwt_audience", mode="before")
     @classmethod

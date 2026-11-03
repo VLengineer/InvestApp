@@ -63,6 +63,20 @@ _CLAIM_TASK_SQL = """
     WHERE id = $1 AND status = 'waiting'
     RETURNING id, status, updated_at
 """
+# Счётчики по статусам — один запрос для диагностики/эндпоинта /queue.
+_COUNT_BY_STATUS_SQL = "SELECT status, count(*)::int AS cnt FROM tasks GROUP BY status"
+# Обновление диагностических полей singleton-строки scheduler_state.
+_UPDATE_QUEUE_STATE_SQL = """
+    UPDATE scheduler_state
+    SET waiting_count = $1, processing_count = $2,
+        last_worker_message = COALESCE($3, last_worker_message),
+        last_cycle_at = now()
+    WHERE id = 1
+"""
+_GET_QUEUE_STATE_SQL = """
+    SELECT waiting_count, processing_count, last_worker_message, last_cycle_at
+    FROM scheduler_state WHERE id = 1
+"""
 
 
 class SchedulerRepository:
@@ -86,6 +100,40 @@ class SchedulerRepository:
     async def set_is_active(self, is_active: bool) -> bool:
         await self._pool.execute(_SET_STATE_SQL, is_active)
         return is_active
+
+    async def count_tasks_by_status(self) -> dict[str, int]:
+        """{'waiting': N, 'processing': M, 'completed': K, 'error': L} — для диагностики."""
+        rows = await self._pool.fetch(_COUNT_BY_STATUS_SQL)
+        counts = {s: 0 for s in ("waiting", "processing", "completed", "error")}
+        for row in rows:
+            counts[str(row["status"])] = int(row["cnt"])
+        return counts
+
+    async def update_queue_counters(
+        self, waiting_count: int, processing_count: int, log_message: str | None = None
+    ) -> None:
+        """Пишет в scheduler_state последние счётчики очереди + текст последнего решения.
+
+        Диагностика «почему воркер ничего не запускает»: эти поля живут в БД,
+        поэтому их видно даже после рестарта контейнера и при INFO-уровне логов
+        (эндпоинт GET /api/v1/scheduler/queue). Ошибки записи не критичны.
+        """
+        try:
+            await self._pool.execute(_UPDATE_QUEUE_STATE_SQL, waiting_count, processing_count, log_message)
+        except Exception as exc:  # noqa: BLE001 - диагностика не должна ронять цикл
+            logger.debug("Не удалось обновить счётчики очереди в scheduler_state: %s", exc)
+
+    async def get_queue_state(self) -> dict[str, Any] | None:
+        """Диагностические поля singleton-строки (счётчики/последнее сообщение воркера)."""
+        row = await self._pool.fetchrow(_GET_QUEUE_STATE_SQL)
+        if row is None:
+            return None
+        return {
+            "waiting_count": row["waiting_count"],
+            "processing_count": row["processing_count"],
+            "last_worker_message": row["last_worker_message"],
+            "last_cycle_at": row["last_cycle_at"],
+        }
 
     # ---------------------------------- tasks ---------------------------------
     async def create_task(self, task_id: UUID) -> dict[str, Any]:
