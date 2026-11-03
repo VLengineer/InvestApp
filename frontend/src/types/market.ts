@@ -60,7 +60,14 @@ export interface MarketDataItem {
   ai_expected_impact: number | null
   ai_confidence: number | null
   ai_text_summary: string | null
+  /**
+   * Сырой JSON-ответ ИИ (колонка JSONB `ai_raw_response`; в части выгрузок
+   * встречается написание `ai_raw_responce` — оба варианта принимаем на фронте,
+   * см. utils pickAiRaw). Структура — см. types/aiAnalysis.ts (зеркало temp.json).
+   */
   ai_raw_response: Record<string, unknown> | null
+  /** Альтернативное (историческое) написание колонки — опционально. */
+  ai_raw_responce?: Record<string, unknown> | string | null
 
   // Целевые переменные ML
   target_horizon_minutes: number
