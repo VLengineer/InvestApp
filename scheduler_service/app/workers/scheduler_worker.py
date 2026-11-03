@@ -8,9 +8,14 @@
      каждые ``poll_interval_s`` читаем статус из БД, пока n8n не переведёт
      задачу в ``completed``/``error`` (или не сработает страховочный таймаут).
   b) Если задач в ``processing`` нет — берём самую старую ``waiting``
-     (ORDER BY created_at ASC LIMIT 1; задачи создаёт API/тестовый триггер).
+     (ORDER BY created_at ASC LIMIT 1; задачи создаёт фоновый генератор —
+     см. пункт e, а также API/тестовый триггер).
   c) Атомарно переводим её в ``processing`` и отправляем POST в n8n.
   d) Ожидаем завершения (callback или таймаут), затем шаг a) для следующей задачи.
+  e) Фоновый генератор задач (producer, вызывается перед шагом a на каждом витке):
+     каждые ``task_generation_interval_s`` создаёт новую задачу ``waiting``,
+     если планировщик активен и waiting_count < ``max_waiting_tasks``
+     (лимит из env; при переполнении — WARNING в логи, задача не создаётся).
 
 Ключевые решения:
   * Состояние очереди живёт в БД, а не в памяти — API-слой (callback-эндпоинт,
@@ -33,7 +38,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timezone
-from uuid import UUID
+from time import monotonic
+from uuid import UUID, uuid4
 
 import httpx
 
@@ -54,6 +60,24 @@ class SchedulerWorker:
         # Общий AsyncClient переиспользует соединения (keep-alive); создаём лениво,
         # чтобы клиент жил внутри запущенного event loop.
         self._client: httpx.AsyncClient | None = None
+        # Диагностика «почему ничего не запускается»: периодический INFO-пульс
+        # (при LOG_LEVEL=INFO молчаливый idle выглядит как зависший сервис).
+        self._last_heartbeat_mono: float = 0.0
+        # Фоновый генератор задач (producer): следующая waiting-задача создаётся
+        # каждые task_generation_interval_s, пока очередь не переполнена
+        # (waiting_count >= max_waiting_tasks — см. _maybe_generate_task).
+        self._next_generation_mono: float = 0.0
+        self._last_limit_log_mono: float = 0.0
+
+    def _heartbeat(self, reason: str) -> None:
+        """INFO-сообщение о простое не чаще, чем раз в heartbeat_log_every_s."""
+        interval = self._settings.heartbeat_log_every_s
+        if interval <= 0:
+            return
+        now = asyncio.get_running_loop().time()
+        if now - self._last_heartbeat_mono >= interval:
+            self._last_heartbeat_mono = now
+            logger.info("Воркер активен, задача не запускается: %s", reason)
 
     # ------------------------------ Жизненный цикл ----------------------------
     async def start(self) -> None:
@@ -69,8 +93,18 @@ class SchedulerWorker:
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(self._settings.n8n_request_timeout_s),
         )
+        # Первая сгенерированная задача — сразу после старта (дальше каждые N секунд);
+        # если нужен отсчёт «от полного интервала», раскомментируйте строку ниже.
+        self._next_generation_mono = monotonic()  # создаём первую задачу в первом цикле
+        # self._next_generation_mono = monotonic() + self._settings.task_generation_interval_s
         self._task = asyncio.create_task(self._run_forever(), name="scheduler-worker")
-        logger.info("Воркер планировщика запущен (poll=%ds)", self._settings.poll_interval_s)
+        logger.info(
+            "Воркер планировщика запущен (poll=%ds, генерация задач=%s каждые %ds, лимит waiting=%d)",
+            self._settings.poll_interval_s,
+            "вкл" if self._settings.task_generation_enabled else "выкл",
+            self._settings.task_generation_interval_s,
+            self._settings.max_waiting_tasks,
+        )
 
     @property
     def alive(self) -> bool:
@@ -95,6 +129,7 @@ class SchedulerWorker:
         """Главный цикл: все исключения перехватываются — цикл не должен умирать."""
         while True:
             try:
+                await self._maybe_generate_task()
                 await self._run_one_cycle()
             except asyncio.CancelledError:
                 raise  # штатная остановка приложения — отдаём наверх
@@ -103,17 +138,70 @@ class SchedulerWorker:
                 logger.exception("Ошибка в цикле воркера (%s): %s — пауза 30 с и повтор", exc.__class__.__name__, exc)
                 await asyncio.sleep(30)
 
+    # -------------------------- Фоновый генератор задач -----------------------
+    async def _maybe_generate_task(self) -> None:
+        """Каждые task_generation_interval_s создаёт новую waiting-задачу (producer).
+
+        Правила:
+          * генерация выключена (TASK_GENERATION_ENABLED=false) — молча пропускаем;
+          * планировщик остановлен (is_active=false) — новые задачи НЕ создаём,
+            иначе за время простоя накопится пачка устаревших задач;
+          * waiting_count >= max_waiting_tasks — очередь переполнена, пропуск
+            с WARNING-логированием (не чаще, чем раз в heartbeat_log_every_s);
+          * иначе — INSERT со статусом 'waiting', который воркер позже возьмёт по FIFO.
+        """
+        if not self._settings.task_generation_enabled:
+            return
+        now = monotonic()
+        if now < self._next_generation_mono:
+            return
+        # Интервал отсчитываем ВСЕГДА, даже при пропуске из-за лимита: иначе
+        # после освобождения очереди tasks «высыпались» бы пачкой за один цикл.
+        self._next_generation_mono = now + self._settings.task_generation_interval_s
+
+        if not await self._repo.get_is_active():
+            logger.debug("Генератор задач: планировщик остановлен — новую задачу не создаю")
+            return
+
+        waiting_count = await self._repo.count_waiting_tasks()
+        limit = self._settings.max_waiting_tasks
+        if waiting_count >= limit:
+            # Ограничение из env: слишком много waiting — не раздуваем очередь.
+            hb = self._settings.heartbeat_log_every_s
+            if hb <= 0 or now - self._last_limit_log_mono >= hb:
+                self._last_limit_log_mono = now
+                logger.warning(
+                    "Генератор задач: новая задача НЕ создана — в очереди уже %d задач "
+                    "со статусом 'waiting' (лимит MAX_WAITING_TASKS=%d). "
+                    "Пропуск этого цикла, следующая попытка через %d с.",
+                    waiting_count, limit, self._settings.task_generation_interval_s,
+                )
+            return
+
+        task_id = uuid4()
+        await self._repo.create_task(task_id)
+        logger.info(
+            "Генератор задач: создана новая задача %s (status='waiting'); "
+            "waiting в очереди: %d/%d; следующая — через %d с",
+            task_id, waiting_count + 1, limit, self._settings.task_generation_interval_s,
+        )
+
     async def _run_one_cycle(self) -> None:
         """Один шаг непрерывного polling'а таблицы tasks (см. docstring модуля)."""
         # Шаг 0: активен ли планировщик?
         is_active = await self._repo.get_is_active()
         if not is_active:
+            self._heartbeat("планировщик остановлен (is_active=false) — жду POST /api/v1/scheduler/start")
             await asyncio.sleep(self._settings.inactive_check_interval_s)
             return
 
         # Шаг a: есть ли прямо сейчас задача в processing? Ждём её итога.
         current = await self._repo.get_processing_task()
         if current is not None:
+            logger.debug(
+                "В работе уже есть задача %s (с %s) — жду callback/таймаут, новые не стартуют",
+                current["id"], current["created_at"],
+            )
             final_status = await self._wait_for_callback(current["id"], started_at=current["created_at"])
             await self._handle_final_status(current["id"], final_status)
             return
@@ -122,6 +210,18 @@ class SchedulerWorker:
         task_id = await self._repo.get_next_waiting_task()
         if task_id is None:
             # Очередь пуста: короткий idle-polling, новых задач нет.
+            # Именно этот случай в проде выглядит как «тихий» сервис: ни одной
+            # INFO-строки в логах, хотя всё работает. Пульс + счётчики в БД это лечат.
+            counts = await self._repo.count_tasks_by_status()
+            await self._repo.update_queue_counters(
+                waiting_count=counts["waiting"],
+                processing_count=counts["processing"],
+                log_message="очередь пуста: нет задач со статусом 'waiting'",
+            )
+            self._heartbeat(
+                f"очередь пуста (waiting=0; completed={counts['completed']}, error={counts['error']}) — "
+                "нужно создать задачу (POST /api/v1/scheduler/test-trigger или INSERT status='waiting')"
+            )
             await asyncio.sleep(self._settings.idle_poll_interval_s)
             return
 
@@ -218,6 +318,7 @@ class SchedulerWorker:
             # Чужая/пережитая processing: отсчитываем таймаут от её created_at.
             age = (datetime.now(timezone.utc) - started_at).total_seconds()
             waited = max(0, int(age))
+        last_heartbeat_mono = asyncio.get_running_loop().time()
         while True:
             status = await self._repo.get_task_status(task_id)
             if status in (TaskStatus.COMPLETED.value, TaskStatus.ERROR.value):
@@ -234,5 +335,15 @@ class SchedulerWorker:
                 )
                 await self._repo.update_task_status(task_id, TaskStatus.ERROR.value)
                 return TaskStatus.ERROR.value
+            # Раз в heartbeat_log_every_s напоминаем в INFO, что мы НЕ зависли:
+            # иначе ожидание callback выглядит как «воркер молчит и ничего не делает».
+            hb = self._settings.heartbeat_log_every_s
+            now_mono = asyncio.get_running_loop().time()
+            if hb > 0 and now_mono - last_heartbeat_mono >= hb:
+                last_heartbeat_mono = now_mono
+                logger.info(
+                    "Задача %s: жду callback от n8n (выполняется %d с из %d с; следующая стартует после итога)",
+                    task_id, waited, timeout,
+                )
             await asyncio.sleep(poll)
             waited += poll

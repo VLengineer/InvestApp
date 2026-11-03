@@ -15,6 +15,14 @@ CREATE TABLE IF NOT EXISTS scheduler_state (
     is_active BOOLEAN NOT NULL DEFAULT TRUE
 );
 
+-- Диагностические поля для баз, созданных до этой версии (идемпотентная миграция):
+-- воркер пишет сюда последние счётчики очереди и текст последнего решения —
+-- это видно через GET /api/v1/scheduler/queue даже после рестарта контейнера.
+ALTER TABLE scheduler_state ADD COLUMN IF NOT EXISTS waiting_count INT NOT NULL DEFAULT 0;
+ALTER TABLE scheduler_state ADD COLUMN IF NOT EXISTS processing_count INT NOT NULL DEFAULT 0;
+ALTER TABLE scheduler_state ADD COLUMN IF NOT EXISTS last_worker_message TEXT;
+ALTER TABLE scheduler_state ADD COLUMN IF NOT EXISTS last_cycle_at TIMESTAMPTZ;
+
 INSERT INTO scheduler_state (id, is_active)
 VALUES (1, TRUE)
 ON CONFLICT (id) DO NOTHING;
