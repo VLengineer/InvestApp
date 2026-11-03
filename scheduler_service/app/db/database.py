@@ -28,17 +28,22 @@ SCHEMA_DDL: tuple[str, ...] = (
     """,
     # Один гарантированный стартовый ряд: планировщик активен по умолчанию.
     "INSERT INTO scheduler_state (id, is_active) VALUES (1, TRUE) ON CONFLICT (id) DO NOTHING",
+    # Единая точка определения DDL микросервиса; зеркалит init_db/04_init_scheduler.sql.
+    # Модель очереди FIFO: waiting -> processing (воркер) -> completed|error (n8n callback).
     """
     CREATE TABLE IF NOT EXISTS tasks (
         id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        status     VARCHAR(16) NOT NULL DEFAULT 'pending'
-                   CHECK (status IN ('pending', 'completed', 'rejected')),
+        status     VARCHAR(16) NOT NULL DEFAULT 'waiting'
+                   CHECK (status IN ('waiting', 'processing', 'completed', 'error')),
         created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
     """,
     "CREATE INDEX IF NOT EXISTS ix_tasks_status ON tasks (status)",
     "CREATE INDEX IF NOT EXISTS ix_tasks_created_at ON tasks (created_at DESC)",
+    # Миграция старых баз (pending/rejected -> waiting/error), идемпотентно.
+    "UPDATE tasks SET status = 'waiting', updated_at = now() WHERE status = 'pending'",
+    "UPDATE tasks SET status = 'error', updated_at = now() WHERE status = 'rejected'",
 )
 
 

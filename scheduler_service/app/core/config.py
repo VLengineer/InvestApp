@@ -66,6 +66,12 @@ class Settings(BaseSettings):
         default="http://n8n:5678/webhook/start_process",
         description="POST-вебхук n8n для старта процесса (env: N8N_WEBHOOK_URL)",
     )
+    # Тестовый вебхук n8n (режим Test workflow) — используется эндпоинтом
+    # POST /api/v1/scheduler/test-trigger для ручного триггера без очереди.
+    n8n_test_webhook_url: str = Field(
+        default="http://n8n:5678/webhook-test/start_process",
+        description="POST-тестовый вебхук n8n (env: N8N_TEST_WEBHOOK_URL)",
+    )
     # JWT, который n8n ожидает в Authorization: Bearer на входящем вебхуке.
     n8n_webhook_jwt_token: str = Field(
         default="",
@@ -74,12 +80,13 @@ class Settings(BaseSettings):
     n8n_request_timeout_s: float = Field(default=30.0, gt=0)
 
     # ------------------------------- Воркер ---------------------------------
-    poll_interval_s: int = Field(default=10, ge=1, description="Период опроса статуса задачи в БД, сек")
+    poll_interval_s: int = Field(default=10, ge=1, description="Период опроса таблицы tasks и статуса задачи, сек")
+    idle_poll_interval_s: int = Field(default=5, ge=1, description="Пауза polling'а, когда в очереди нет waiting-задач, сек")
     inactive_check_interval_s: int = Field(default=5, ge=1, description="Пауза, пока планировщик выключен, сек")
     sleep_after_completed_s: int = Field(default=600, ge=0, description="Пауза после completed (10 мин), сек")
-    sleep_after_rejected_s: int = Field(default=300, ge=0, description="Пауза после rejected (5 мин), сек")
-    # Страховка от «зависшего» pending, если callback так и не пришёл (n8n упал):
-    # по истечении таймаута задача помечается rejected, цикл освобождается.
+    sleep_after_error_s: int = Field(default=300, ge=0, description="Пауза после error (5 мин), сек")
+    # Страховка от «зависшей» processing, если callback так и не пришёл (n8n упал):
+    # по истечении таймаута задача помечается error, цикл берёт следующую waiting.
     task_wait_timeout_s: int = Field(default=3600, ge=60, description="Максимум ожидания callback, сек")
 
     @field_validator("jwt_issuer", "jwt_audience", mode="before")

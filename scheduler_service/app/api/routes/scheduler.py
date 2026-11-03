@@ -73,8 +73,8 @@ async def start_scheduler(repository: RepositoryDep, principal: PrincipalDep) ->
     response_model=SchedulerStateResponse,
     summary="Остановить планировщик (JWT)",
     description=(
-        "Устанавливает scheduler_state.is_active = false. Текущая pending-задача "
-        "дождется callback, но новых задач воркер создавать не будет."
+        "Устанавливает scheduler_state.is_active = false. Текущая processing-задача "
+        "дождется callback, но новых задач воркер запускать не будет."
     ),
 )
 async def stop_scheduler(repository: RepositoryDep, principal: PrincipalDep) -> SchedulerStateResponse:
@@ -97,8 +97,9 @@ async def get_state(repository: RepositoryDep, _principal: PrincipalDep) -> Sche
     summary="Приём результата обработки задачи от n8n (X-Callback-Secret)",
     description=(
         "Вызывается сценарием n8n по завершении проверки новости: "
-        "{\"task_id\": \"<uuid>\", \"status\": \"completed\" | \"rejected\"} "
-        "и заголовок X-Callback-Secret. Воркер увидит новый статус при следующем polling."
+        "{\"task_id\": \"<uuid>\", \"status\": \"completed\" | \"error\"} "
+        "и заголовок X-Callback-Secret. Воркер увидит новый статус при следующем polling "
+        "и запустит следующую waiting-задачу."
     ),
 )
 async def n8n_callback(
@@ -106,7 +107,7 @@ async def n8n_callback(
     repository: RepositoryDep,
     _secret: Annotated[None, Depends(verify_callback_secret)],
 ) -> CallbackResponse:
-    """Обновляет статус задачи; воркер подхватит его на следующем polling-цикле."""
+    """Обновляет итоговый статус задачи; воркер подхватит его на следующем polling-цикле."""
     updated = await repository.update_task_status(body.task_id, body.status.value)
     if updated is None:
         # 404 даёт сигнал n8n, что task_id неизвестен (например, задача уже ссанитизирована).
