@@ -6,7 +6,7 @@ EXPOSE 8888
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --no-audit --no-fund --registry=https://registry.npmmirror.com
+RUN npm ci --no-audit --no-fund --registry=https://registry.npmmirror.com
 
 COPY . .
 
