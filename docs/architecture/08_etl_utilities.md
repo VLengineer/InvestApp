@@ -31,7 +31,7 @@
 
 Снапшот ответа `GetAllInstruments` Tinkoff Invest API: массив `{"json": {"instruments": [{figi, ticker, classCode, isin, lot, currency, name, exchange, sector, countryOfRisk, buyAvailable/sellAvailable, price, floatSize, apiTradeAvailableFlag, createDate, …}]}}` (~1 МБ).
 
-**Потребители кода: отсутствуют** (проверено поиском по репозиторию) — это эталонные/обучающие данные формата инструмента (ключи `units/nano` совпадают с контрактом сервиса 05) и сырьё для ML-датасета `market_news_ml_dataset` (DDL — `init_db/02_init_market_news_ml.sql`; код news_analyzer в ветке отсутствует). Правила актуальности: ручное обновление снапшота; идентификатор жизни записи — `figi`.
+**Потребители кода: отсутствуют** (проверено поиском по репозиторию) — это эталонные/обучающие данные формата инструмента (ключи `units/nano` совпадают с контрактом сервиса 05) и сырьё для ML-датасета `market_news_ml_dataset` (DDL — `init_db/02_init_market_news_ml.sql`; код news_analyzer в ветке отсутствует; сам датасет читает BFF дашборда `backend-frontend` — документ 09). Правила актуальности: ручное обновление снапшота; идентификатор жизни записи — `figi`.
 
 ## 8.4. Legacy-пакет `python_test/embeddings/`
 

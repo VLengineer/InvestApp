@@ -6,7 +6,7 @@
 - `python_test/app/schemas/news.py` — контракт `NewsSearchRequest / CompanyResult / NewsSearchResponse`
 - `python_test/app/repositories/company_profile_repository.py` — метод `search_for_news()`
 - `python_test/app/api/deps.py` — провайдер `CompanySearchDep`
-- смежные артефакты: `init_db/02_init_market_news_ml.sql` (ML-датасет новостей), отсутствующий в ветке код `news_analyzer`
+- смежные артефакты: `init_db/02_init_market_news_ml.sql` (ML-датасет новостей), отсутствующий в ветке код `news_analyzer`; потребитель датасета — BFF дашборда `backend-frontend` (документ 09)
 
 ## Назначение
 
