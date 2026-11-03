@@ -19,14 +19,21 @@ INSERT INTO scheduler_state (id, is_active)
 VALUES (1, TRUE)
 ON CONFLICT (id) DO NOTHING;
 
--- Очередь задач воркера: n8n обновляет статус через callback-эндпоинт.
+-- Очередь задач воркера (FIFO): задачи создаются в статусе 'waiting';
+-- воркер берёт самую старую waiting и переводит её в 'processing'.
+-- Итоговый статус ('completed' | 'error') устанавливает n8n через callback-эндпоинт.
 CREATE TABLE IF NOT EXISTS tasks (
     id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    status     VARCHAR(16) NOT NULL DEFAULT 'pending'
-               CHECK (status IN ('pending', 'completed', 'rejected')),
+    status     VARCHAR(16) NOT NULL DEFAULT 'waiting'
+               CHECK (status IN ('waiting', 'processing', 'completed', 'error')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS ix_tasks_status ON tasks (status);
 CREATE INDEX IF NOT EXISTS ix_tasks_created_at ON tasks (created_at DESC);
+
+-- Миграция для баз, созданных ДО смены модели статусов (идемпотентно):
+-- переименование «старых» статусов pending/rejected -> waiting/error.
+UPDATE tasks SET status = 'waiting', updated_at = now() WHERE status = 'pending';
+UPDATE tasks SET status = 'error',   updated_at = now() WHERE status = 'rejected';

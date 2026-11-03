@@ -1,34 +1,45 @@
-"""Фоновый воркер планировщика: бесконечный цикл опроса n8n через очередь задач в БД.
+"""Фоновый воркер планировщика: непрерывный polling очереди задач + запуск n8n.
 
-Архитектура (паттерн Callback, см. диаграмму последовательности):
-  1. Пока ``scheduler_state.is_active == false`` — короткая пауза (5 с) и повтор.
-  2. При активной работе: создаёт задачу (uuid, status='pending') в PostgreSQL,
-     отправляет POST на вебхук n8n c Bearer-токеном и ЖДЁТ callback: каждые
-     POLL_INTERVAL_S читает статус задачи из БД.
-  3. completed -> пауза 10 минут; rejected -> пауза 5 минут; затем шаг 1.
+Архитектура (паттерн Callback, очередь FIFO, 4 статуса):
+    waiting -> processing (воркер) -> completed | error (n8n через callback)
+
+Алгоритм одного шага цикла (непрерывный polling таблицы tasks):
+  a) Есть ли сейчас задача в статусе ``processing``? Если да — ждём её итога:
+     каждые ``poll_interval_s`` читаем статус из БД, пока n8n не переведёт
+     задачу в ``completed``/``error`` (или не сработает страховочный таймаут).
+  b) Если задач в ``processing`` нет — берём самую старую ``waiting``
+     (ORDER BY created_at ASC LIMIT 1; задачи создаёт API/тестовый триггер).
+  c) Атомарно переводим её в ``processing`` и отправляем POST в n8n.
+  d) Ожидаем завершения (callback или таймаут), затем шаг a) для следующей задачи.
 
 Ключевые решения:
-  * Состояние (pending/completed/rejected) живёт в БД, а не в памяти — API-слой
-    (callback-эндпоинт) и воркер общаются через таблицу tasks, что переживает
+  * Состояние очереди живёт в БД, а не в памяти — API-слой (callback-эндпоинт,
+    test-trigger) и воркер общаются только через таблицу tasks; это переживает
     рестарты контейнера и позволяет горизонтально масштабировать HTTP-часть.
+  * Задачи создаются со статусом ``waiting`` НЕЗАВИСИМО от того, чем закончилась
+    предыдущая: воркер сам разгребает очередь по одной задаче за раз (FIFO).
+  * Итоговые статусы ``completed``/``error`` ставит сама n8n через callback;
+    воркер их только проверяет (polling) и по завершении запускает следующую.
   * Никаких блокирующих вызовов: только asyncio.sleep / asyncpg / httpx.AsyncClient.
-  * Ошибки (БД недоступна, n8n не отвечает) НЕ роняют цикл: задача остаётся
-    pending (или помечается rejected при явном отказе доставки), воркер делает
-    экспоненциальную паузу и продолжает — устойчивость к сбоям важнее скорости.
-  * Таймаут ожидания callback (task_wait_timeout_s) — страховка от «вечного»
-    pending, если n8n так и не вызовет callback.
+  * Страховочные таймауты сохранены: «зависшая» processing старше
+    ``task_wait_timeout_s`` помечается ``error`` (при старте — массовая санация,
+    в polling — построчно), после чего цикл освобождается.
+  * Ошибки (БД недоступна, n8n не отвечает) НЕ роняют цикл: пауза и продолжение —
+    устойчивость к сбоям важнее скорости.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from uuid import UUID, uuid4
+from datetime import datetime, timezone
+from uuid import UUID
 
 import httpx
 
 from app.core.config import Settings
 from app.db.repository import SchedulerRepository
+from app.schemas.scheduler import TaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -50,11 +61,11 @@ class SchedulerWorker:
         if self._task is not None and not self._task.done():
             logger.warning("Воркер уже запущен — повторный start игнорируется")
             return
-        # Санация «зависших» pending после предыдущего падения контейнера.
+        # Санация «зависших» processing после предыдущего падения контейнера.
         try:
-            await self._repo.mark_stale_pending_rejected(self._settings.task_wait_timeout_s)
+            await self._repo.mark_stale_processing_error(self._settings.task_wait_timeout_s)
         except Exception as exc:  # noqa: BLE001 - старт важнее санации
-            logger.error("Санация pending-задач не удалась (не критично): %s", exc)
+            logger.error("Санация processing-задач не удалась (не критично): %s", exc)
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(self._settings.n8n_request_timeout_s),
         )
@@ -93,42 +104,65 @@ class SchedulerWorker:
                 await asyncio.sleep(30)
 
     async def _run_one_cycle(self) -> None:
-        # Шаг 1: активен ли планировщик?
+        """Один шаг непрерывного polling'а таблицы tasks (см. docstring модуля)."""
+        # Шаг 0: активен ли планировщик?
         is_active = await self._repo.get_is_active()
         if not is_active:
             await asyncio.sleep(self._settings.inactive_check_interval_s)
             return
 
-        # Шаг 2a-b: новая задача 'pending' в очереди (uuid генерируем здесь —
-        # он же ключ идемпотентности для callback).
-        task_id: UUID = uuid4()
-        await self._repo.create_task(task_id)
+        # Шаг a: есть ли прямо сейчас задача в processing? Ждём её итога.
+        current = await self._repo.get_processing_task()
+        if current is not None:
+            final_status = await self._wait_for_callback(current["id"], started_at=current["created_at"])
+            await self._handle_final_status(current["id"], final_status)
+            return
 
-        # Шаг 2c-d: запуск процесса в n8n.
+        # Шаг b: в работе пусто — берём самую старую waiting (FIFO).
+        task_id = await self._repo.get_next_waiting_task()
+        if task_id is None:
+            # Очередь пуста: короткий idle-polling, новых задач нет.
+            await asyncio.sleep(self._settings.idle_poll_interval_s)
+            return
+
+        # Шаг c: атомарный захват waiting -> processing.
+        claimed = await self._repo.claim_task(task_id)
+        if claimed is None:
+            # Задачу забрал другой воркер (или она исчезла) — сразу следующий шаг.
+            return
+
+        # Шаг c (продолжение): запуск процесса в n8n.
         launched = await self._send_to_n8n(task_id)
         if not launched:
-            # n8n недоступен/ошибка доставки: задача остаётся 'pending' (видно в БД),
-            # но цикл не зависает в ожидании — пауза как для rejected (5 мин).
-            logger.warning("Задача %s: n8n не принял запуск — остаётся pending, пауза %d с",
-                           task_id, self._settings.sleep_after_rejected_s)
-            await asyncio.sleep(self._settings.sleep_after_rejected_s)
+            # n8n недоступен/ошибка доставки: снимаем с обработки обратно в waiting —
+            # задача будет переброшена позже (страховка от вечного retry — таймаут санации).
+            logger.warning("Задача %s: n8n не принял запуск — возвращаем в waiting, пауза %d с",
+                           task_id, self._settings.sleep_after_error_s)
+            await self._repo.update_task_status(task_id, TaskStatus.WAITING.value)
+            await asyncio.sleep(self._settings.sleep_after_error_s)
             return
 
         logger.info("Задача %s отправлена в n8n, ожидание результата...", task_id)
 
-        # Шаг 2e-g: polling статуса в БД каждые poll_interval_s (ожидание callback).
+        # Шаг d: polling статуса в БД каждые poll_interval_s (ожидание callback).
         final_status = await self._wait_for_callback(task_id)
+        await self._handle_final_status(task_id, final_status)
 
-        if final_status == "completed":
-            logger.info("Задача %s успешно завершена. Ожидание 5 минут перед следующим запуском.", task_id)
+    async def _handle_final_status(self, task_id: UUID, final_status: str | None) -> None:
+        """Пауза по итогу задачи; следующая waiting будет взята на следующем шаге цикла."""
+        if final_status == TaskStatus.COMPLETED.value:
+            logger.info("Задача %s завершена (completed). Пауза %d с перед следующим запуском.",
+                        task_id, self._settings.sleep_after_completed_s)
             await asyncio.sleep(self._settings.sleep_after_completed_s)
-        elif final_status == "rejected":
-            logger.info("Задача %s отклонена. Ожидание 5 минут перед следующим запуском.", task_id)
-            await asyncio.sleep(self._settings.sleep_after_rejected_s)
+        elif final_status == TaskStatus.ERROR.value:
+            logger.info("Задача %s завершилась с ошибкой (error). Пауза %d с перед следующим запуском.",
+                        task_id, self._settings.sleep_after_error_s)
+            await asyncio.sleep(self._settings.sleep_after_error_s)
         else:
-            # Задача исчезла из БД (ручная чистка) — считаем это мягким reject.
-            logger.warning("Задача %s не найдена в БД во время опроса — пауза 5 минут.", task_id)
-            await asyncio.sleep(self._settings.sleep_after_rejected_s)
+            # Задача исчезла из БД (ручная чистка) — пауза как для error.
+            logger.warning("Задача %s не найдена в БД во время опроса — пауза %d минут.",
+                           task_id, self._settings.sleep_after_error_s // 60 or 1)
+            await asyncio.sleep(self._settings.sleep_after_error_s)
 
     # ---------------------------------- n8n ------------------------------------
     async def _send_to_n8n(self, task_id: UUID) -> bool:
@@ -165,28 +199,40 @@ class SchedulerWorker:
         return True
 
     # ------------------------------ Ожидание callback ---------------------------
-    async def _wait_for_callback(self, task_id: UUID) -> str | None:
-        """Polling статуса задачи в БД каждые poll_interval_s, пока не completed/rejected.
+    async def _wait_for_callback(self, task_id: UUID, started_at=None) -> str | None:
+        """Polling статуса задачи в БД каждые poll_interval_s, пока completed/error.
 
-        Возвращает итоговый статус или None (задача пропала), либо 'timeout'-как-'rejected':
-        по истечении task_wait_timeout_s задача помечается rejected и возвращается
-        'rejected' — цикл освобождается, БД остаётся консистентной.
+        Возвращает итоговый статус ('completed' | 'error'), либо None (задача
+        пропала из БД). Страховочный таймаут: если задача висит в processing
+        дольше task_wait_timeout_s (callback так и не пришёл — n8n упал),
+        воркер помечает её 'error' и возвращает 'error' — цикл освобождается
+        и на следующем шаге берёт следующую waiting-задачу.
+
+        started_at — время начала обработки (для задач, найденных уже в
+        processing при рестарте воркера); для свежезахваченной считаем от now.
         """
-        waited = 0
         poll = self._settings.poll_interval_s
         timeout = self._settings.task_wait_timeout_s
+        waited = 0
+        if started_at is not None:
+            # Чужая/пережитая processing: отсчитываем таймаут от её created_at.
+            age = (datetime.now(timezone.utc) - started_at).total_seconds()
+            waited = max(0, int(age))
         while True:
             status = await self._repo.get_task_status(task_id)
-            if status in ("completed", "rejected"):
+            if status in (TaskStatus.COMPLETED.value, TaskStatus.ERROR.value):
                 return status
             if status is None:
                 return None
+            if status != TaskStatus.PROCESSING.value:
+                # Откатили вручную (например, вернули в waiting) — ждём снова.
+                return None
             if waited >= timeout:
                 logger.warning(
-                    "Задача %s: callback не получен за %d с — помечаем rejected (страховочный таймаут)",
+                    "Задача %s: callback не получен за %d с — помечаем error (страховочный таймаут)",
                     task_id, timeout,
                 )
-                await self._repo.update_task_status(task_id, "rejected")
-                return "rejected"
+                await self._repo.update_task_status(task_id, TaskStatus.ERROR.value)
+                return TaskStatus.ERROR.value
             await asyncio.sleep(poll)
             waited += poll

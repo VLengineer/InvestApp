@@ -64,25 +64,25 @@
       "type": "UUID",
       "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
     },
-    "ticker": {
-      "type": "VARCHAR(16)",
+    "figi": {
+      "type": "VARCHAR(32)",
       "constraints": null
     },
     "source": {
       "type": "VARCHAR(255)",
-      "constraints": "NOT NULL"
+      "constraints": null
     },
     "title": {
       "type": "TEXT",
-      "constraints": "NOT NULL"
+      "constraints": null
     },
     "content": {
       "type": "TEXT",
-      "constraints": "NOT NULL"
+      "constraints": null
     },
     "ts": {
       "type": "TIMESTAMP(9) WITH TIME ZONE",
-      "constraints": "NOT NULL"
+      "constraints": null
     },
     "candle_time": {
       "type": "TIMESTAMP(9) WITH TIME ZONE",
@@ -90,31 +90,31 @@
     },
     "open_price": {
       "type": "DOUBLE PRECISION",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "high_price": {
       "type": "DOUBLE PRECISION",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "low_price": {
       "type": "DOUBLE PRECISION",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "close_price": {
       "type": "DOUBLE PRECISION",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "volume": {
       "type": "BIGINT",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "volume_buy": {
       "type": "BIGINT",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "volume_sell": {
       "type": "BIGINT",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "is_complete": {
       "type": "BOOLEAN",
@@ -122,46 +122,82 @@
     },
     "rsi_14": {
       "type": "DOUBLE PRECISION",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "stoch_k": {
       "type": "DOUBLE PRECISION",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "stoch_d": {
       "type": "DOUBLE PRECISION",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "cci_20": {
       "type": "DOUBLE PRECISION",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "williams_r": {
       "type": "DOUBLE PRECISION",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "roc_12": {
       "type": "DOUBLE PRECISION",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "mfi_14": {
       "type": "DOUBLE PRECISION",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "macd": {
       "type": "DOUBLE PRECISION",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "macd_signal": {
       "type": "DOUBLE PRECISION",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "adx_14": {
       "type": "DOUBLE PRECISION",
-      "constraints": null
+      "constraints": "NOT NULL"
     },
     "atr_14": {
       "type": "DOUBLE PRECISION",
+      "constraints": "NOT NULL"
+    },
+    "limit_up_units": {
+      "type": "DOUBLE PRECISION",
+      "constraints": "NOT NULL"
+    },
+    "limit_down_units": {
+      "type": "DOUBLE PRECISION",
+      "constraints": "NOT NULL"
+    },
+    "close_price_units": {
+      "type": "DOUBLE PRECISION",
+      "constraints": "NOT NULL"
+    },
+    "last_price_units": {
+      "type": "DOUBLE PRECISION",
+      "constraints": "NOT NULL"
+    },
+    "price_currency": {
+      "type": "VARCHAR(16)",
+      "constraints": "NOT NULL"
+    },
+    "last_price_ts": {
+      "type": "TIMESTAMP(9) WITH TIME ZONE",
+      "constraints": null
+    },
+    "orderbook_ts": {
+      "type": "TIMESTAMP(9) WITH TIME ZONE",
+      "constraints": null
+    },
+    "close_price_ts": {
+      "type": "TIMESTAMP(9) WITH TIME ZONE",
+      "constraints": null
+    },
+    "depth": {
+      "type": "INTEGER",
       "constraints": null
     },
     "ai_sentiment_score": {
@@ -203,6 +239,58 @@
     "target_volatility_threshold_pct": {
       "type": "DOUBLE PRECISION",
       "constraints": null
+    }
+  },
+  "orderbook_asks": {
+    "id": {
+      "type": "UUID",
+      "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+    },
+    "market_data_id": {
+      "type": "UUID",
+      "constraints": "NOT NULL REFERENCES market_news_ml_dataset (id) ON DELETE CASCADE"
+    },
+    "position": {
+      "type": "INTEGER",
+      "constraints": "NOT NULL"
+    },
+    "price_units": {
+      "type": "BIGINT",
+      "constraints": "NOT NULL"
+    },
+    "price_nano": {
+      "type": "INTEGER",
+      "constraints": "NOT NULL"
+    },
+    "quantity": {
+      "type": "NUMERIC(20,9)",
+      "constraints": "NOT NULL"
+    }
+  },
+  "orderbook_bids": {
+    "id": {
+      "type": "UUID",
+      "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+    },
+    "market_data_id": {
+      "type": "UUID",
+      "constraints": "NOT NULL REFERENCES market_news_ml_dataset (id) ON DELETE CASCADE"
+    },
+    "position": {
+      "type": "INTEGER",
+      "constraints": "NOT NULL"
+    },
+    "price_units": {
+      "type": "BIGINT",
+      "constraints": "NOT NULL"
+    },
+    "price_nano": {
+      "type": "INTEGER",
+      "constraints": "NOT NULL"
+    },
+    "quantity": {
+      "type": "NUMERIC(20,9)",
+      "constraints": "NOT NULL"
     }
   },
   "company_profiles": {
@@ -328,7 +416,7 @@
     },
     "status": {
       "type": "VARCHAR(16)",
-      "constraints": "NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'rejected'))"
+      "constraints": "NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'processing', 'completed', 'error'))"
     },
     "created_at": {
       "type": "TIMESTAMPTZ",
