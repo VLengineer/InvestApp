@@ -1,9 +1,13 @@
-<script setup>
+<script setup lang="ts">
 import { reactive, ref } from 'vue'
 
-const props = defineProps({
-  webhookUrl: { type: String, required: true },
-  authToken: { type: String, default: '' },
+interface Props {
+  webhookUrl: string
+  authToken?: string
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  authToken: '',
 })
 
 // Поля формы — ровно те, что уходят JSON-телом на вебхук n8n
@@ -40,7 +44,7 @@ async function analyze() {
 
   loading.value = true
   try {
-    const headers = { 'Content-Type': 'application/json' }
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (props.authToken) {
       headers['Authorization'] = `Bearer ${props.authToken}`
     }
@@ -62,7 +66,7 @@ async function analyze() {
     }
     result.value = data
   } catch (e) {
-    error.value = `Не удалось вызвать вебхук ${props.webhookUrl}: ${e.message}. ` +
+    error.value = `Не удалось вызвать вебхук ${props.webhookUrl}: ${(e as Error).message}. ` +
       'ERR_NAME_NOT_RESOLVED означает, что браузер пытался открыть docker-имя (n8n) — ' +
       'обновите страницу: вызов должен идти через /n8n-api/… (прокси Vite). ' +
       'Для /webhook-test сначала нажмите «Execute workflow» в n8n, ' +
