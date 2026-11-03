@@ -7,20 +7,47 @@
  * золотой для основных линий, платиновый для вспомогательных.
  * Real-time: при изменении массива data (append/upsert из Dashboard)
  * графики обновляются без перезагрузки страницы.
+ *
+ * Интерактивность (Задача 3):
+ *  * зум колесом/пинчем и панорамирование drag'ом через общий «барабан
+ *    времени» useChartSync — окно синхронизировано с PriceChart (свечи);
+ *  * crosshair с tooltip'ом точных значений + рассылка перекрестия между
+ *    всеми графиками группы (createCrosshairHub);
+ *  * кнопка «На весь экран» (useFullscreen) — разворот блока осцилляторов.
  */
 import { onBeforeUnmount, onMounted, shallowRef, watch } from 'vue'
 import * as echarts from 'echarts/core'
 import { LineChart, BarChart } from 'echarts/charts'
-import { GridComponent } from 'echarts/components'
+import { GridComponent, TooltipComponent, DataZoomComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsOption } from 'echarts'
 import type { MarketDataItem } from '../types/market'
 import { candleTime, timeLabels } from '../utils/chartData'
+import {
+  attachWheelZoomScroll,
+  createCrosshairHub,
+  useChartSync,
+  type ChartSync,
+  type CrosshairHub,
+} from '../composables/useChartSync'
+import { useFullscreen } from '../composables/useFullscreen'
 
 // Регистрируем только нужные модули ECharts — меньше бандл, быстрее загрузка
-echarts.use([LineChart, BarChart, GridComponent, CanvasRenderer])
+echarts.use([LineChart, BarChart, GridComponent, TooltipComponent, DataZoomComponent, CanvasRenderer])
 
-const props = defineProps<{ data: MarketDataItem[] }>()
+const props = defineProps<{
+  data: MarketDataItem[]
+  /** Общий барабан времени из Dashboard.vue (синхронизация со свечным графиком). */
+  sync?: ChartSync | null
+}>()
+
+const emit = defineEmits<{
+  /** Метка времени свечи под курсором (для синхронного кроссхэйра со свечами). */
+  (e: 'crosshair-time', time: number | null): void
+}>()
+
+const rootEl = shallowRef<HTMLElement | null>(null)
+const { isFullscreen, toggle: toggleFullscreen } = useFullscreen(rootEl)
 
 /**
  * Палитра графика берётся из CSS-переменных tokens.css (Modern Platinum):
@@ -112,11 +139,27 @@ function seriesValue(def: SeriesDef, item: MarketDataItem): number | null {
 
 function buildOption(def: ChartDef, items: MarketDataItem[]): EChartsOption {
   // Метки времени: одна на запись (дубли времен допустимы — category axis)
-  const labels = timeLabels(items.map((it) => candleTime(it)).filter((t): t is number => t !== null))
+  const times = items.map((it) => candleTime(it)).filter((t): t is number => t !== null)
+  const labels = timeLabels(times)
 
   return {
     animation: false, // «не грузить ПК лишними анимациями»
     grid: { left: 48, right: 12, top: 26, bottom: 20 },
+    // Crosshair + tooltip точных значений (Задача 3)
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: {
+        type: 'cross',
+        label: { backgroundColor: INK_SOFT, fontSize: 10 },
+        crossStyle: { color: PLATINUM },
+      },
+      textStyle: { fontSize: 11 },
+      formatter: ((params: unknown) => formatTooltip(def, items, params)) as never,
+    },
+    // Программный зум окном useChartSync (startValue/endValue задаются извне)
+    dataZoom: [
+      { type: 'hidden', xAxisIndex: 0, startValue: 0, endValue: Math.max(1, labels.length - 1) },
+    ],
     xAxis: {
       type: 'category',
       data: labels,
@@ -160,12 +203,94 @@ function buildOption(def: ChartDef, items: MarketDataItem[]): EChartsOption {
   }
 }
 
+/** Точные значения в tooltip: метка времени + серия с числом. */
+interface TooltipParam {
+  axisIndex?: number
+  axisValue?: string | number
+  seriesName?: string
+  value?: number | string | null
+  color?: string
+}
+
+function formatTooltip(def: ChartDef, items: MarketDataItem[], params: unknown): string {
+  const list = Array.isArray(params) ? (params as TooltipParam[]) : [params as TooltipParam]
+  const idx = list[0]?.axisIndex
+  const time = typeof idx === 'number' ? candleTime(items[idx] ?? ({} as MarketDataItem)) : null
+  const head = time !== null && time !== undefined
+    ? new Date(time * 1000).toLocaleString('ru-RU')
+    : escapeHtml(String(list[0]?.axisValue ?? def.title))
+  const rows = list
+    .filter((p) => p && p.value !== null && p.value !== undefined && p.value !== '')
+    .map((p) => {
+      const v = typeof p.value === 'number' ? p.value.toFixed(4) : escapeHtml(String(p.value))
+      return `<div>${escapeHtml(p.seriesName ?? '')}: <b>${v}</b></div>`
+    })
+  return `<div style="min-width:120px"><b>${head}</b>${rows.join('')}</div>`
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (ch) => `&#${ch.charCodeAt(0)};`)
+}
+
+/* ------------------ Синхронизация, кроссхэйр, зум/скролл ------------------- */
+
+/** Локальный барабан на случай, если Dashboard не передал общий sync. */
+const localSync = useChartSync()
+const activeSync = (): ChartSync => props.sync ?? localSync
+
+const hub: CrosshairHub = createCrosshairHub()
+const cleanups: Array<() => void> = []
+let windowUnsub: (() => void) | null = null
+
+/** Применить текущее окно синхронизации ко всем инстансам. */
+function applyWindow(start: number, end: number) {
+  for (const inst of instances.values()) {
+    inst.setOption({
+      dataZoom: [{ type: 'hidden', xAxisIndex: 0, startValue: start, endValue: Math.max(start + 1, end - 1) }],
+    })
+  }
+}
+
+/** Обновить барабан при перерисовке истории (labels соответствуют items). */
+function updateDrum(items: MarketDataItem[]) {
+  const sync = activeSync()
+  const times = items.map((it) => candleTime(it)).filter((t): t is number => t !== null)
+  if (times.length === 0) return
+  // Если данные совпадают с барабаном — не сбрасываем текущий зум пользователя
+  const drum = sync.drum.value
+  if (drum.length === times.length && drum[0] === times[0] && drum[drum.length - 1] === times[times.length - 1]) {
+    return
+  }
+  sync.setDrum(times)
+}
+
+function bindInteractions(el: HTMLElement, inst: ReturnType<typeof echarts.init>) {
+  const offWheel = attachWheelZoomScroll(el, activeSync())
+  const onMouseEvent = (payload: { dataIndex?: number; axesInfo?: unknown[] }) => {
+    const hasPoint = (payload.axesInfo?.length ?? 0) > 0 || payload.dataIndex !== undefined
+    if (!hasPoint) {
+      emit('crosshair-time', null)
+      return
+    }
+    const items = props.data
+    const idx = typeof payload.dataIndex === 'number' ? payload.dataIndex : -1
+    const t = idx >= 0 ? candleTime(items[idx] ?? ({} as MarketDataItem)) : null
+    emit('crosshair-time', t ?? null)
+  }
+  inst.on('updateAxisPointer', onMouseEvent as never)
+  cleanups.push(() => inst.off('updateAxisPointer', onMouseEvent as never))
+  cleanups.push(offWheel)
+}
+
 function renderAll(items: MarketDataItem[]) {
   for (const def of CHART_DEFS) {
     const inst = instances.get(def.key)
     if (!inst) continue
     inst.setOption(buildOption(def, items), { notMerge: true })
   }
+  updateDrum(items)
+  const sync = activeSync()
+  applyWindow(sync.startIdx.value, sync.endIdx.value)
 }
 
 onMounted(() => {
@@ -177,14 +302,22 @@ onMounted(() => {
     if (!el) continue
     const inst = echarts.init(el, undefined, { renderer: 'canvas' })
     instances.set(def.key, inst)
+    hub.register(inst)
     const onResize = () => inst.resize()
     window.addEventListener('resize', onResize)
     resizeHandlers.push(onResize)
+    bindInteractions(el, inst)
   }
   renderAll(props.data)
+
+  // Подписка на общее окно (зум/скролл со свечного графика или другого осциллятора)
+  windowUnsub = activeSync().onWindowChange(applyWindow)
 })
 
 onBeforeUnmount(() => {
+  if (windowUnsub) windowUnsub()
+  for (const fn of cleanups) fn()
+  cleanups.length = 0
   for (const fn of resizeHandlers) window.removeEventListener('resize', fn)
   resizeHandlers.length = 0
   for (const inst of instances.values()) inst.dispose()
@@ -199,9 +332,22 @@ watch(
 </script>
 
 <template>
-  <div ref="wrapEl" class="oscillators card pl-card">
-    <h3 class="block-title">Осцилляторы</h3>
-    <div class="grid">
+  <div ref="rootEl" class="oscillators card pl-card" :class="{ 'is-fullscreen': isFullscreen }">
+    <div class="head">
+      <h3 class="block-title">Осцилляторы</h3>
+      <div class="tools">
+        <button type="button" class="tool-btn" title="Сбросить зум" @click="activeSync().fitAll()">Весь период</button>
+        <button
+          type="button"
+          class="tool-btn"
+          :aria-pressed="isFullscreen"
+          :title="isFullscreen ? 'Выйти из полноэкранного режима' : 'Раскрыть на весь экран'"
+          @click="toggleFullscreen()"
+        >{{ isFullscreen ? 'Свернуть' : 'На весь экран' }}</button>
+      </div>
+    </div>
+    <p class="hint">Колесо мыши — зум, перетаскивание — панорамирование; окно синхронизировано с графиком цены.</p>
+    <div ref="wrapEl" class="grid">
       <div v-for="def in CHART_DEFS" :key="def.key" class="cell">
         <div :data-chart="def.key" class="chart" />
       </div>
@@ -216,12 +362,51 @@ watch(
   padding: var(--space-md);
 }
 
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
 .block-title {
-  margin: 0 0 var(--space-sm);
+  margin: 0;
   font-size: var(--fs-body);
   font-weight: var(--fw-regular);
   letter-spacing: var(--ls-tight);
   color: var(--color-ink);
+}
+
+.tools {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.tool-btn {
+  padding: 4px 10px;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+  color: var(--color-ink);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-platinum);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.tool-btn:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+}
+
+.hint {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  color: var(--color-grey-light);
 }
 
 .grid {
@@ -239,9 +424,28 @@ watch(
   height: 160px;
 }
 
+/* Fullscreen: фон и растягиваем сетку на весь экран, графики выше */
+.is-fullscreen {
+  background: var(--color-bg-elevated);
+  overflow: auto;
+  padding: var(--space-lg, 24px);
+}
+
+.is-fullscreen .grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.is-fullscreen .chart {
+  height: 300px;
+}
+
 /* ---------- Адаптив: на планшете/мобильном — одна колонка ---------- */
 @media (max-width: 1023px) {
   .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .is-fullscreen .grid {
     grid-template-columns: 1fr;
   }
 }

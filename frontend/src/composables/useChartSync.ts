@@ -251,7 +251,7 @@ export function attachWheelZoomScroll(
  * рассылаем showTip/moveCrosshair в остальные экземпляры той же группы.
  */
 type EChartsLike = {
-  dispatchAction: (payload: Record<string, unknown>) => void
+  dispatchAction: (payload: { type: string } & Record<string, unknown>) => void
   containPixel?: (finder: string, pos: [number, number]) => boolean
 }
 
