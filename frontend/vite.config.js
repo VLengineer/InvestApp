@@ -1,8 +1,9 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
-// Tailwind CSS v4 — через официальный vite-плагин (цвета брендбука заданы
-// в src/style.css блоком @theme).
-import tailwindcss from '@tailwindcss/vite'
+
+// Сторонних CSS-фреймворков нет: стилизация — собственные слои
+// src/styles/*.css (токены → reset → base → layout → анимации),
+// подключаемые глобально в main.ts + scoped-стили компонентов.
 
 // https://vite.dev/config/
 export default defineConfig(({ mode: viteMode }) => {
@@ -13,7 +14,7 @@ export default defineConfig(({ mode: viteMode }) => {
   const marketProxyTarget = env.MARKET_API_PROXY_TARGET || 'http://localhost:8300'
 
   return {
-    plugins: [vue(), tailwindcss()],
+    plugins: [vue()],
     server: {
       host: true,      // слушать 0.0.0.0 внутри контейнера
       port: 5173,

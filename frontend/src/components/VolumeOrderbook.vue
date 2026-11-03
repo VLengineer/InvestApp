@@ -17,8 +17,31 @@ echarts.use([BarChart, GridComponent, TooltipComponent, CanvasRenderer])
 
 const props = defineProps<{ data: MarketDataItem[] }>()
 
-const GOLD = '#D4AF37'
-const TEXT_SECONDARY = '#6B6B6B'
+/**
+ * Палитра графика берётся из CSS-переменных tokens.css (Modern Platinum):
+ * изменив --color-gold в токенах, золотой акцент поменяется и здесь.
+ */
+function cssVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return v || fallback
+}
+
+let GOLD = '#B8935A'            // --color-gold
+let PLATINUM = '#A8A8A8'        // --color-platinum-dark
+let INK_SOFT = '#333333'        // --color-ink-soft
+let LINE = '#D8D8D8'            // --color-platinum
+let GRID = '#F2F2F0'            // --color-platinum-soft
+let TEXT_SECONDARY = '#666666'  // --color-grey
+
+function syncPaletteFromTokens() {
+  GOLD = cssVar('--color-gold', GOLD)
+  PLATINUM = cssVar('--color-platinum-dark', PLATINUM)
+  INK_SOFT = cssVar('--color-ink-soft', INK_SOFT)
+  LINE = cssVar('--color-platinum', LINE)
+  GRID = cssVar('--color-platinum-soft', GRID)
+  TEXT_SECONDARY = cssVar('--color-grey', TEXT_SECONDARY)
+}
 
 /* ---------------- График объёмов ---------------- */
 
@@ -53,19 +76,19 @@ function renderVolumes(items: MarketDataItem[]) {
     xAxis: {
       type: 'category',
       data: timeLabels(times),
-      axisLine: { lineStyle: { color: '#E5E4E2' } },
+      axisLine: { lineStyle: { color: LINE } },
       axisTick: { show: false },
       axisLabel: { color: TEXT_SECONDARY, fontSize: 10 },
     },
     yAxis: {
       type: 'value',
-      splitLine: { lineStyle: { color: '#F5F5F4' } },
+      splitLine: { lineStyle: { color: GRID } },
       axisLabel: { color: TEXT_SECONDARY, fontSize: 10 },
     },
     series: [
-      { name: 'Volume', type: 'bar', data: total, itemStyle: { color: 'rgba(212,175,55,0.45)' }, barWidth: '70%' },
+      { name: 'Volume', type: 'bar', data: total, itemStyle: { color: `${GOLD}73` }, barWidth: '70%' },
       { name: 'Buy', type: 'bar', data: buy, itemStyle: { color: GOLD }, stack: 'bs' },
-      { name: 'Sell', type: 'bar', data: sell, itemStyle: { color: '#B8B7B5' }, stack: 'bs' },
+      { name: 'Sell', type: 'bar', data: sell, itemStyle: { color: PLATINUM }, stack: 'bs' },
     ],
   }
   volChart.setOption(option, { notMerge: true })
@@ -101,6 +124,7 @@ function fmt(n: number): string {
 let onResize: (() => void) | null = null
 
 onMounted(() => {
+  syncPaletteFromTokens()
   if (volEl.value) {
     volChart = echarts.init(volEl.value, undefined, { renderer: 'canvas' })
     renderVolumes(props.data)
@@ -121,13 +145,13 @@ watch(() => props.data, (items) => renderVolumes(items))
 <template>
   <div class="volumes-row">
     <!-- Объёмы -->
-    <section class="card">
+    <section class="card pl-card">
       <h3 class="block-title">Объёмы</h3>
       <div ref="volEl" class="vol-chart" />
     </section>
 
     <!-- Стакан -->
-    <section class="card book-card">
+    <section class="card pl-card book-card">
       <h3 class="block-title">
         Стакан
         <span v-if="lastWithBook?.depth != null" class="depth-badge">
@@ -161,62 +185,49 @@ watch(() => props.data, (items) => renderVolumes(items))
 </template>
 
 <style scoped>
+/* Двухколоночная сетка карточек (объёмы | стакан). Flat, только токены. */
 .volumes-row {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
-  gap: 16px;
-}
-
-@media (max-width: 1279px) {
-  .volumes-row {
-    grid-template-columns: 1fr;
-  }
+  grid-template-columns: 3fr 2fr;
+  gap: var(--space-sm);
 }
 
 .card {
-  background: #ffffff;
-  border: 1px solid var(--color-platinum, #e5e4e2);
-  border-radius: 8px;
-  padding: 16px;
-  min-width: 0;
+  padding: var(--space-md);
 }
 
 .block-title {
-  margin: 0 0 12px;
-  font-size: 15px;
-  font-weight: 400;
-  letter-spacing: 0.03em;
-  color: var(--color-text-primary, #1a1a1a);
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-sm);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+  letter-spacing: var(--ls-tight);
+  color: var(--color-ink);
 }
 
 .depth-badge {
-  font-size: 11px;
-  font-weight: 300;
-  color: var(--color-gold-dark, #a8871c);
-  border: 1px solid var(--color-gold-light, #f4e5b8);
-  border-radius: 999px;
-  padding: 1px 8px;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  letter-spacing: var(--ls-tight);
+  color: var(--color-gold);
 }
 
 .vol-chart {
-  height: 180px;
   width: 100%;
+  height: 180px;
 }
 
 .book-empty {
-  font-size: 13px;
-  font-weight: 300;
-  color: var(--color-text-secondary, #6b6b6b);
-  padding: 20px 0;
-  text-align: center;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  color: var(--color-grey-light);
 }
 
 .book {
   display: flex;
-  gap: 12px;
+  gap: var(--space-xs);
 }
 
 .book-col {
@@ -225,43 +236,68 @@ watch(() => props.data, (items) => renderVolumes(items))
 }
 
 .col-head {
-  font-size: 11px;
-  letter-spacing: 0.08em;
+  display: block;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-wide);
   text-transform: uppercase;
-  margin-bottom: 6px;
+  color: var(--color-grey-light);
+  margin-bottom: var(--space-xs);
 }
 
-.ask-head { color: #c0392b; }
-.bid-head { color: #3e8e5a; }
+.ask-head {
+  color: var(--color-platinum-dark);
+}
+
+.bid-head {
+  color: var(--color-gold);
+}
 
 .level {
   position: relative;
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  padding: 3px 6px;
-  font-size: 12px;
-  font-weight: 300;
-  color: var(--color-text-primary, #1a1a1a);
+  gap: var(--space-xs);
+  padding: 4px var(--space-xs);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
   overflow: hidden;
-  border-radius: 3px;
 }
 
+/* Фон строки — «глубина» стакана: золото для bid, платина для ask */
 .qty-bar {
   position: absolute;
-  inset-block: 0;
-  left: 0;
-  opacity: 0.18;
+  inset: 0 auto 0 0;
+  opacity: 0.15;
 }
 
-.ask-bar { background: #c0392b; }
-.bid-bar { background: #3e8e5a; }
+.bid-bar {
+  background: var(--color-gold);
+}
 
-.price { z-index: 1; font-variant-numeric: tabular-nums; }
-.qty { z-index: 1; color: var(--color-text-secondary, #6b6b6b); font-variant-numeric: tabular-nums; }
+.ask-bar {
+  background: var(--color-platinum-dark);
+}
+
+.price {
+  position: relative;
+  color: var(--color-ink);
+}
+
+.qty {
+  position: relative;
+  color: var(--color-grey);
+}
 
 .divider {
   width: 1px;
-  background: var(--color-gold-light, #f4e5b8);
+  background: var(--color-platinum);
+}
+
+/* ---------- Адаптив: на планшете — одна колонка ---------- */
+@media (max-width: 1023px) {
+  .volumes-row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

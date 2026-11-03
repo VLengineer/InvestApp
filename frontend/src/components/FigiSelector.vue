@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
- * FigiSelector.vue — ключевой элемент дашборда: элегантный dropdown FIGI
- * в золотой рамке на светлом фоне (брендбук).
+ * FigiSelector.vue — ключевой элемент дашборда: минималистичный dropdown
+ * FIGI (Modern Platinum: белый фон, тонкая платиновая рамка, золото —
+ * только точечный акцент: label, active-строка, линия снизу на hover).
  *
  * Логика инкапсулирована внутри компонента только в части отображения;
  * загрузка списка FIGI и реакция на выбор — через v-model + события родителя
@@ -94,10 +95,10 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocClick))
     >
       <span class="trigger-label">FIGI</span>
       <span class="trigger-value">{{ modelValue || (loading ? 'Загрузка…' : 'Выберите инструмент') }}</span>
-      <span class="chevron" :class="{ 'chevron--open': open }">▾</span>
+      <span class="chevron" :class="{ 'chevron--open': open }" aria-hidden="true">▾</span>
     </button>
 
-    <div v-if="open" class="panel">
+    <div v-if="open" class="panel animate-dropdown">
       <input
         v-model="search"
         class="search"
@@ -128,7 +129,8 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocClick))
 </template>
 
 <style scoped>
-/* Элегантный dropdown в золотой рамке, светлый фон, тонкие линии, без теней. */
+/* Flat-стиль: тонкие линии, радиус 2px, без теней;
+   золото — точечный акцент. Только токены из tokens.css. */
 .figi-selector {
   position: relative;
   min-width: 240px;
@@ -138,14 +140,18 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocClick))
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  background: #ffffff;
-  border: 1px solid var(--color-gold, #d4af37);
-  border-radius: 6px;
+  gap: var(--space-sm);
+  padding: 10px var(--space-sm);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-platinum);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font: inherit;
-  color: var(--color-text-primary, #1a1a1a);
+  color: var(--color-ink);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.trigger:hover:not(:disabled) {
+  border-color: var(--color-gold);
 }
 
 .trigger:disabled {
@@ -154,23 +160,25 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocClick))
 }
 
 .trigger-label {
-  font-size: 11px;
-  letter-spacing: 0.08em;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-wide);
   text-transform: uppercase;
-  color: var(--color-gold-dark, #a8871c);
+  color: var(--color-gold);
 }
 
 .trigger-value {
   flex: 1;
   text-align: left;
-  font-size: 14px;
-  font-weight: 300;
-  letter-spacing: 0.02em;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-light);
+  letter-spacing: var(--ls-tight);
 }
 
+/* Шеврон — лёгкий поворот (плавно, без bounce) */
 .chevron {
-  color: var(--color-text-secondary, #6b6b6b);
-  transition: transform 0.15s ease;
+  color: var(--color-grey-light);
+  transition: transform var(--duration-fast) var(--ease-out);
 }
 
 .chevron--open {
@@ -179,61 +187,70 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocClick))
 
 .panel {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--space-xs));
   left: 0;
   right: 0;
   z-index: 30;
-  background: #ffffff;
-  border: 1px solid var(--color-platinum-dark, #b8b7b5);
-  border-top-color: var(--color-gold-light, #f4e5b8);
-  border-radius: 6px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-platinum-dark);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-soft); /* тень только у «поднятого» слоя */
   overflow: hidden;
 }
 
 .search {
   width: 100%;
-  padding: 8px 12px;
+  padding: var(--space-xs) var(--space-sm);
   border: none;
-  border-bottom: 1px solid var(--color-platinum, #e5e4e2);
-  font: inherit;
-  font-size: 13px;
+  border-bottom: 1px solid var(--color-platinum);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
   outline: none;
-  background: var(--color-platinum-light, #f5f5f4);
-  color: var(--color-text-primary, #1a1a1a);
+  background: var(--color-platinum-soft);
+  color: var(--color-ink);
+}
+
+.search:focus {
+  background: var(--color-gold-soft);
 }
 
 .list {
   list-style: none;
   margin: 0;
-  padding: 4px 0;
+  padding: var(--space-xs) 0;
   max-height: 260px;
   overflow-y: auto;
 }
 
 .item {
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 300;
-  letter-spacing: 0.02em;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  letter-spacing: var(--ls-tight);
   cursor: pointer;
-  color: var(--color-text-secondary, #6b6b6b);
+  color: var(--color-grey);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
 }
 
 .item:hover,
 .item--highlight {
-  background: var(--color-platinum-light, #f5f5f4);
-  color: var(--color-gold-dark, #a8871c);
+  background: var(--color-platinum-soft);
+  color: var(--color-gold-hover);
 }
 
+/* Активная строка — золотая линия слева */
 .item--active {
-  color: var(--color-text-primary, #1a1a1a);
-  border-left: 2px solid var(--color-gold, #d4af37);
-  font-weight: 400;
+  color: var(--color-ink);
+  border-left: 2px solid var(--color-gold);
+  font-weight: var(--fw-regular);
 }
 
 .empty {
-  padding: 10px 14px;
-  font-size: 13px;
-  color: var(--color-text-secondary, #6b6b6b);
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  color: var(--color-grey-light);
 }
 </style>

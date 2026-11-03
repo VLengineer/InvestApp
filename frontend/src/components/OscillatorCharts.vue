@@ -22,9 +22,31 @@ echarts.use([LineChart, BarChart, GridComponent, CanvasRenderer])
 
 const props = defineProps<{ data: MarketDataItem[] }>()
 
-const GOLD = '#D4AF37'
-const PLATINUM = '#B8B7B5'
-const TEXT_SECONDARY = '#6B6B6B'
+/**
+ * Палитра графика берётся из CSS-переменных tokens.css (Modern Platinum):
+ * изменив --color-gold в токенах, золотой акцент поменяется и здесь.
+ */
+function cssVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return v || fallback
+}
+
+let GOLD = '#B8935A'            // --color-gold
+let PLATINUM = '#A8A8A8'        // --color-platinum-dark
+let INK_SOFT = '#333333'        // --color-ink-soft
+let LINE = '#D8D8D8'            // --color-platinum
+let GRID = '#F2F2F0'            // --color-platinum-soft
+let TEXT_SECONDARY = '#666666'  // --color-grey
+
+function syncPaletteFromTokens() {
+  GOLD = cssVar('--color-gold', GOLD)
+  PLATINUM = cssVar('--color-platinum-dark', PLATINUM)
+  INK_SOFT = cssVar('--color-ink-soft', INK_SOFT)
+  LINE = cssVar('--color-platinum', LINE)
+  GRID = cssVar('--color-platinum-soft', GRID)
+  TEXT_SECONDARY = cssVar('--color-grey', TEXT_SECONDARY)
+}
 
 interface SeriesDef {
   name: string
@@ -99,14 +121,14 @@ function buildOption(def: ChartDef, items: MarketDataItem[]): EChartsOption {
       type: 'category',
       data: labels,
       boundaryGap: def.series.some((s) => s.type === 'bar'),
-      axisLine: { lineStyle: { color: '#E5E4E2' } },
+      axisLine: { lineStyle: { color: LINE } },
       axisTick: { show: false },
       axisLabel: { color: TEXT_SECONDARY, fontSize: 10 },
     },
     yAxis: {
       type: 'value',
       scale: true,
-      splitLine: { lineStyle: { color: '#F5F5F4' } },
+      splitLine: { lineStyle: { color: GRID } },
       axisLabel: { color: TEXT_SECONDARY, fontSize: 10 },
     },
     title: {
@@ -122,7 +144,7 @@ function buildOption(def: ChartDef, items: MarketDataItem[]): EChartsOption {
           name: s.name,
           type: 'bar' as const,
           data,
-          itemStyle: { color: 'rgba(212, 175, 55, 0.35)' }, // золото, полупрозрачное
+          itemStyle: { color: `${GOLD}59` }, // золото, полупрозрачное (hex alpha)
           barWidth: '60%',
         }
       }
@@ -147,6 +169,7 @@ function renderAll(items: MarketDataItem[]) {
 }
 
 onMounted(() => {
+  syncPaletteFromTokens()
   const wrap = wrapEl.value
   if (!wrap) return
   for (const def of CHART_DEFS) {
@@ -176,7 +199,7 @@ watch(
 </script>
 
 <template>
-  <div ref="wrapEl" class="oscillators card">
+  <div ref="wrapEl" class="oscillators card pl-card">
     <h3 class="block-title">Осцилляторы</h3>
     <div class="grid">
       <div v-for="def in CHART_DEFS" :key="def.key" class="cell">
@@ -187,32 +210,24 @@ watch(
 </template>
 
 <style scoped>
-.card {
-  background: #ffffff;
-  border: 1px solid var(--color-platinum, #e5e4e2);
-  border-radius: 8px;
-  padding: 16px;
+/* Одна flat-карточка «Осцилляторы» с сеткой мини-графиков.
+   Только токены из tokens.css. */
+.oscillators {
+  padding: var(--space-md);
 }
 
 .block-title {
-  margin: 0 0 12px;
-  font-size: 15px;
-  font-weight: 400;
-  letter-spacing: 0.03em;
-  color: var(--color-text-primary, #1a1a1a);
+  margin: 0 0 var(--space-sm);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+  letter-spacing: var(--ls-tight);
+  color: var(--color-ink);
 }
 
 .grid {
   display: grid;
-  /* Адаптив: от 1280px — 4 колонки, меньше — 2 */
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-@media (min-width: 1280px) {
-  .grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-sm);
 }
 
 .cell {
@@ -220,7 +235,14 @@ watch(
 }
 
 .chart {
-  height: 150px;
   width: 100%;
+  height: 160px;
+}
+
+/* ---------- Адаптив: на планшете/мобильном — одна колонка ---------- */
+@media (max-width: 1023px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

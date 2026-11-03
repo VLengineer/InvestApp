@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Dashboard.vue — финансовый дашборд (новый, по ТЗ).
+ * Dashboard.vue — финансовый дашборд в стиле «Modern Platinum».
  *
  * Поток данных:
  *  1. GET /api/market/figis        → список FIGI в селектор;
@@ -11,6 +11,7 @@
  *
  * Выбранный FIGI сохраняется в query-параметр ?figi= (шаринг ссылки)
  * и в localStorage (дефолт при следующем визите).
+ * Секции появляются при скролле через composable useRevealOnScroll.
  */
 import { onMounted, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -22,10 +23,13 @@ import AICard from '../components/AICard.vue'
 import NewsModal from '../components/NewsModal.vue'
 import { fetchFigis, fetchInitialData, fetchNewsById } from '../api/market'
 import { useWebSocket } from '../composables/useWebSocket'
+import { useRevealOnScroll } from '../composables/useRevealOnScroll'
 import type { MarketDataItem } from '../types/market'
 
 const route = useRoute()
 const router = useRouter()
+
+const { revealRef } = useRevealOnScroll()
 
 const LS_KEY = 'dashboard.figi'
 
@@ -169,9 +173,9 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="dashboard">
+  <div ref="revealRef" class="dashboard">
     <!-- Фильтры -->
-    <section class="filters card">
+    <section class="filters card pl-card animate-hero" aria-label="Фильтры данных">
       <div class="filter-group">
         <FigiSelector v-model="selectedFigi" :figis="figis" :loading="figisLoading" />
       </div>
@@ -181,7 +185,7 @@ onMounted(async () => {
           <option v-for="p in PERIODS" :key="p.hours" :value="p.hours">{{ p.label }}</option>
         </select>
       </div>
-      <div class="status">
+      <div class="status" role="status">
         <span class="dot" :class="connected ? 'dot--on' : 'dot--off'" />
         {{ connected ? 'Real-time активен' : 'Ожидание соединения' }}
       </div>
@@ -192,16 +196,16 @@ onMounted(async () => {
 
     <template v-if="selectedFigi">
       <!-- График цены с маркерами новостей -->
-      <PriceChart ref="priceChartRef" :data="visibleHistory" @marker-click="openNewsModal" />
+      <PriceChart ref="priceChartRef" :data="visibleHistory" class="reveal" @marker-click="openNewsModal" />
 
       <!-- Аналитика ИИ (последняя запись с саммари) -->
-      <AICard :data="visibleHistory" />
+      <AICard :data="visibleHistory" class="reveal" />
 
       <!-- Осцилляторы -->
-      <OscillatorCharts :data="visibleHistory" />
+      <OscillatorCharts :data="visibleHistory" class="reveal" />
 
       <!-- Объёмы и стакан -->
-      <VolumeOrderbook :data="visibleHistory" />
+      <VolumeOrderbook :data="visibleHistory" class="reveal" />
     </template>
 
     <p v-else-if="!figisLoading && figis.length === 0" class="empty">
@@ -215,66 +219,68 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* Все цвета/отступы — токены из tokens.css. */
 .dashboard {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 24px;
-  max-width: 1920px;
-  min-width: 1024px; /* корректное отображение от 1280px с учётом сайдбара */
-}
-
-.card {
-  background: #ffffff;
-  border: 1px solid var(--color-platinum, #e5e4e2);
-  border-radius: 8px;
-  padding: 16px;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  max-width: var(--container-max);
+  margin: 0 auto;
 }
 
 .filters {
   display: flex;
   align-items: flex-end;
-  gap: 24px;
+  gap: var(--space-md);
   flex-wrap: wrap;
+  padding: var(--space-sm) var(--space-md);
 }
 
 .field-label {
   display: block;
-  font-size: 11px;
-  letter-spacing: 0.08em;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-wide);
   text-transform: uppercase;
-  color: var(--color-text-secondary, #6b6b6b);
-  margin-bottom: 6px;
+  color: var(--color-grey-light);
+  margin-bottom: var(--space-xs);
 }
 
 .period-select {
   appearance: none;
-  padding: 10px 32px 10px 14px;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 300;
-  color: var(--color-text-primary, #1a1a1a);
-  background: #ffffff
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23A8871C'/></svg>")
-    no-repeat right 12px center;
-  border: 1px solid var(--color-platinum-dark, #b8b7b5);
-  border-radius: 6px;
+  padding: 10px 40px 10px var(--space-sm);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-light);
+  letter-spacing: var(--ls-tight);
+  color: var(--color-ink);
+  background: var(--color-bg-elevated)
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23B8935A'/></svg>")
+    no-repeat right 14px center;
+  border: 1px solid var(--color-platinum);
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.period-select:hover {
+  border-color: var(--color-platinum-dark);
 }
 
 .period-select:focus {
   outline: none;
-  border-color: var(--color-gold, #d4af37);
+  border-color: var(--color-gold);
 }
 
 .status {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  font-weight: 300;
-  color: var(--color-text-secondary, #6b6b6b);
+  gap: var(--space-xs);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  letter-spacing: var(--ls-tight);
+  color: var(--color-grey);
   padding-bottom: 10px;
 }
 
@@ -284,37 +290,52 @@ onMounted(async () => {
   border-radius: 50%;
 }
 
-.dot--on { background: var(--color-gold, #d4af37); }
-.dot--off { background: var(--color-platinum-dark, #b8b7b5); }
+.dot--on {
+  background: var(--color-gold);
+}
+
+.dot--off {
+  background: var(--color-platinum-dark);
+}
 
 .error {
-  margin: 0;
-  font-size: 13px;
-  color: #c0392b;
-  border: 1px solid #f0c9c2;
-  border-radius: 6px;
-  padding: 8px 12px;
-  background: #fff;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  color: var(--color-ink);
+  border: 1px solid var(--color-platinum);
+  border-left: 2px solid var(--color-ink);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-platinum-soft);
 }
 
 .loading {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 300;
-  color: var(--color-text-secondary, #6b6b6b);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  letter-spacing: var(--ls-tight);
+  text-transform: uppercase;
+  color: var(--color-grey-light);
 }
 
 .empty {
-  font-size: 14px;
-  font-weight: 300;
-  color: var(--color-text-secondary, #6b6b6b);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-light);
+  color: var(--color-grey);
 }
 
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
+/* ---------- Адаптив ---------- */
+@media (max-width: 1023px) {
+  .dashboard {
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+  }
+
+  .filters {
+    gap: var(--space-sm);
+  }
+
+  .status {
+    margin-left: 0;
+  }
 }
 </style>

@@ -1,4 +1,10 @@
 <script setup lang="ts">
+/**
+ * NewsAnalyzerForm.vue — форма карточки новости (переиспользуемый компонент,
+ * данные принимаются через props). Стили — Modern Platinum: flat-карточка
+ * с тонкой платиновой рамкой, радиусы 2px, золотые акценты на focus/hover,
+ * без теней в состоянии покоя. Только CSS-переменные из tokens.css.
+ */
 import { reactive, ref } from 'vue'
 
 interface Props {
@@ -82,7 +88,7 @@ function refreshTs() {
 </script>
 
 <template>
-  <form class="card" @submit.prevent="analyze">
+  <form class="card pl-card" @submit.prevent="analyze">
     <div class="field">
       <label for="task_id">task_id</label>
       <input id="task_id" v-model="form.task_id" type="text" placeholder="например: SBER" />
@@ -111,19 +117,20 @@ function refreshTs() {
     <div class="field">
       <label for="ts">Время публикации (ts)</label>
       <div class="ts-row">
-        <input id="ts" v-model="form.ts" type="text" />
-        <button type="button" class="secondary" @click="refreshTs">Сейчас</button>
+        <input id="ts" v-model="form.ts" type="text" class="mono" />
+        <button type="button" class="btn btn--ghost" @click="refreshTs">Сейчас</button>
       </div>
     </div>
 
-    <button class="primary" type="submit" :disabled="loading">
+    <button class="btn btn--primary" type="submit" :disabled="loading">
       {{ loading ? 'Анализируем…' : 'Анализировать' }}
+      <span v-if="!loading" class="btn-arrow" aria-hidden="true">→</span>
     </button>
 
-    <p v-if="error" class="status error">{{ error }}</p>
+    <p v-if="error" class="status status--error">{{ error }}</p>
 
-    <div v-if="result" class="status success">
-      <p>✅ Новость принята и сохранена.</p>
+    <div v-if="result" class="status status--success">
+      <p>Новость принята и сохранена.</p>
       <pre>{{ JSON.stringify(result, null, 2) }}</pre>
     </div>
   </form>
@@ -131,85 +138,155 @@ function refreshTs() {
 
 <style scoped>
 .card {
-  margin-top: 24px;
-  padding: 24px;
-  border: 1px solid #dfe3ea;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+  margin-top: var(--space-md);
 }
+
+/* ---------- Поля ---------- */
 .field {
-  margin-bottom: 16px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
 }
+
 label {
-  font-weight: 600;
-  font-size: 14px;
-  color: #303846;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+  color: var(--color-grey-light);
 }
+
 input,
 textarea {
-  font: inherit;
-  padding: 10px 12px;
-  border: 1px solid #c7ced9;
-  border-radius: 8px;
-  outline: none;
+  padding: 10px var(--space-sm);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-platinum);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-light);
+  color: var(--color-ink);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
 }
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-grey-light);
+}
+
+input:hover,
+textarea:hover {
+  border-color: var(--color-platinum-dark);
+}
+
+/* Focus — точечный золотой акцент вместо синего */
 input:focus,
 textarea:focus {
-  border-color: #4f7cff;
-  box-shadow: 0 0 0 3px rgba(79, 124, 255, 0.15);
+  outline: none;
+  border-color: var(--color-gold);
+  box-shadow: 0 0 0 3px var(--color-gold-soft);
 }
+
+.mono {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: var(--fs-micro);
+}
+
 .ts-row {
   display: flex;
-  gap: 8px;
+  gap: var(--space-xs);
 }
+
 .ts-row input {
   flex: 1;
-  font-family: monospace;
 }
-button {
-  font: inherit;
+
+/* ---------- Кнопки: без тени в покое ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: 12px var(--space-md);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-tight);
   cursor: pointer;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 18px;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
 }
-.primary {
+
+.btn--primary {
   width: 100%;
-  background: #4f7cff;
-  color: #fff;
-  font-weight: 600;
+  background: var(--color-gold);
+  color: var(--color-bg-elevated);
 }
-.primary:disabled {
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--color-gold-hover);
+}
+
+/* Стрелка — лёгкий translateX на hover */
+.btn-arrow {
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.btn--primary:hover:not(:disabled) .btn-arrow {
+  transform: translateX(4px);
+}
+
+.btn--primary:disabled {
   opacity: 0.6;
   cursor: progress;
 }
-.secondary {
-  background: #eef1f5;
-  color: #303846;
+
+.btn--ghost {
+  background: var(--color-bg-elevated);
+  color: var(--color-ink-soft);
+  border: 1px solid var(--color-platinum);
 }
+
+.btn--ghost:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold-hover);
+}
+
+/* ---------- Статусы ---------- */
 .status {
-  margin-top: 16px;
-  padding: 12px;
-  border-radius: 8px;
-  font-size: 14px;
+  margin-top: var(--space-sm);
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-light);
+  line-height: var(--lh-normal);
 }
-.error {
-  background: #fdecec;
-  color: #b3261e;
+
+.status--error {
+  border: 1px solid var(--color-platinum-dark);
+  border-left: 2px solid var(--color-ink);
+  color: var(--color-ink);
+  background: var(--color-platinum-soft);
 }
-.success {
-  background: #eaf7ee;
-  color: #14682d;
+
+.status--success {
+  border: 1px solid var(--color-platinum);
+  border-left: 2px solid var(--color-gold);
+  color: var(--color-ink-soft);
+  background: var(--color-gold-soft);
 }
-.success pre {
-  background: #fff;
-  padding: 10px;
-  border-radius: 6px;
+
+.status--success pre {
+  margin-top: var(--space-xs);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-platinum);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs);
   overflow: auto;
-  font-size: 12px;
+  font-size: var(--fs-micro);
 }
 </style>

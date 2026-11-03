@@ -1,0 +1,91 @@
+/* ============================================================
+   tokens.css — дизайн-токены стиля «Modern Platinum».
+
+   ЕДИНСТВЕННАЯ точка настройки внешнего вида приложения.
+   Изменение, например, --color-gold меняет золотой акцент везде:
+   все компоненты используют только CSS-переменные из этого файла.
+
+   Подключается глобально в main.ts (до остальных слоёв стилей).
+   ============================================================ */
+
+/* Шрифт Inter — через Google Fonts (@import должен быть первым в CSS). */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap');
+
+:root {
+  /* === Цветовая палитра === */
+  --color-gold: #B8935A;
+  --color-gold-hover: #9A7A4A;
+  --color-gold-soft: rgba(184, 147, 90, 0.1);
+
+  --color-platinum: #D8D8D8;
+  --color-platinum-soft: #F2F2F0;
+  --color-platinum-dark: #A8A8A8;
+
+  --color-ink: #111111;
+  --color-ink-soft: #333333;
+  --color-grey: #666666;
+  --color-grey-light: #888888;
+
+  --color-bg: #FCFCFA;
+  --color-bg-elevated: #FFFFFF;
+
+  /* === Семантические цвета (строго из палитры выше) === */
+  --color-line: var(--color-platinum);            /* тонкие разделители */
+  --color-line-soft: var(--color-platinum-soft);  /* сетки графиков, фоны строк */
+  --color-surface-hover: var(--color-platinum-soft);
+  --color-accent: var(--color-gold);              /* точечный золотый акцент */
+  --color-positive: var(--color-gold);            /* «рост» — золото, не зелёный */
+  --color-negative: var(--color-platinum-dark);   /* «падение» — платина, не красный */
+  --color-overlay: rgba(17, 17, 17, 0.35);        /* затемнение под модалкой */
+
+  /* === Типографика === */
+  --font-display: 'Inter', -apple-system, sans-serif;
+  --font-body: 'Inter', -apple-system, sans-serif;
+
+  --fs-hero: clamp(48px, 6vw, 80px);
+  --fs-h2: clamp(32px, 4vw, 48px);
+  --fs-h3: 24px;
+  --fs-body: 16px;
+  --fs-small: 14px;
+  --fs-micro: 13px;
+
+  --fw-light: 300;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-bold: 700;
+
+  --lh-tight: 1.1;
+  --lh-normal: 1.6;
+  --lh-loose: 1.8;
+
+  --ls-tight: 0.5px;
+  --ls-normal: 1px;
+  --ls-wide: 2px;
+  --ls-ultra: 4px;
+
+  /* === Отступы === */
+  --space-xs: 8px;
+  --space-sm: 16px;
+  --space-md: 32px;
+  --space-lg: 64px;
+  --space-xl: 120px;
+
+  --container-max: 1200px;
+  --container-padding: 64px;
+
+  /* === Анимации === */
+  --duration-fast: 0.3s;
+  --duration-normal: 0.4s;
+  --duration-slow: 0.8s;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* === Тени (только hover/поднятые слои, никогда на кнопках в покое) === */
+  --shadow-soft: 0 10px 30px -15px rgba(0, 0, 0, 0.1);
+  --shadow-medium: 0 20px 60px -20px rgba(0, 0, 0, 0.15);
+
+  /* === Радиусы (максимум 2px — ограничение стиля) === */
+  --radius-none: 0px;
+  --radius-sm: 2px;
+}

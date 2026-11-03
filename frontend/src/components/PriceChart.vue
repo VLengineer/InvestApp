@@ -2,7 +2,7 @@
 /**
  * PriceChart.vue — график цены на TradingView Lightweight Charts:
  *  - свечи (open/high/low/close по candle_time);
- *  - маркеры новостей: маленький золотой круг (#D4AF37) там, где у записи
+ *  - маркеры новостей: маленький золотой круг (--color-gold) там, где у записи
  *    непустой ai_text_summary; клик по маркеру → событие marker-click(newsId);
  *  - real-time: метод upsert(item) добавляет/перезаписывает свечу без перезагрузки.
  * Императивная работа с chart API (данные приходят потоком), поэтому
@@ -43,9 +43,33 @@ interface NewsMarker extends SeriesMarker<Time> {
 }
 const markers = shallowRef<NewsMarker[]>([])
 
-/** Цвета брендбука для графика. */
-const GOLD = '#D4AF37'
-const TEXT_SECONDARY = '#6B6B6B'
+/**
+ * Палитра графика берётся из CSS-переменных tokens.css (Modern Platinum):
+ * изменив --color-gold в токенах, золотой акцент поменяется и на графике.
+ */
+function cssVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return v || fallback
+}
+
+let GOLD = '#B8935A'          // --color-gold
+let PLATINUM = '#A8A8A8'      // --color-platinum-dark
+let INK = '#111111'           // --color-ink
+let BG = '#FFFFFF'            // --color-bg-elevated
+let LINE = '#D8D8D8'          // --color-platinum
+let GRID = '#F2F2F0'          // --color-platinum-soft
+let TEXT_SECONDARY = '#666666'// --color-grey
+
+function syncPaletteFromTokens() {
+  GOLD = cssVar('--color-gold', GOLD)
+  PLATINUM = cssVar('--color-platinum-dark', PLATINUM)
+  INK = cssVar('--color-ink', INK)
+  BG = cssVar('--color-bg-elevated', BG)
+  LINE = cssVar('--color-platinum', LINE)
+  GRID = cssVar('--color-platinum-soft', GRID)
+  TEXT_SECONDARY = cssVar('--color-grey', TEXT_SECONDARY)
+}
 
 function buildMarkers(items: MarketDataItem[]): NewsMarker[] {
   const out: NewsMarker[] = []
@@ -129,20 +153,21 @@ let resizeObserver: ResizeObserver | null = null
 onMounted(() => {
   const el = containerEl.value
   if (!el) return
+  syncPaletteFromTokens()
   const c = createChart(el, {
     width: el.clientWidth,
     height: 420,
     layout: {
-      background: { type: ColorType.Solid, color: '#FFFFFF' },
+      background: { type: ColorType.Solid, color: BG },
       textColor: TEXT_SECONDARY,
-      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      fontFamily: "'Inter', -apple-system, sans-serif",
     },
     grid: {
-      vertLines: { color: '#F5F5F4' },
-      horzLines: { color: '#F5F5F4' },
+      vertLines: { color: GRID },
+      horzLines: { color: GRID },
     },
-    rightPriceScale: { borderColor: '#E5E4E2' },
-    timeScale: { borderColor: '#E5E4E2', timeVisible: true, secondsVisible: false },
+    rightPriceScale: { borderColor: LINE },
+    timeScale: { borderColor: LINE, timeVisible: true, secondsVisible: false },
     crosshair: { mode: CrosshairMode.Normal },
     handleScroll: { mouseWheel: true, pressedMouseMove: true },
     handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
@@ -150,12 +175,12 @@ onMounted(() => {
   chart.value = c
 
   const series = c.addCandlestickSeries({
-    upColor: '#A8871C',      // растущая свеча — тёмное золото
-    downColor: '#B8B7B5',    // падающая свеча — платина
-    borderUpColor: '#A8871C',
-    borderDownColor: '#B8B7B5',
-    wickUpColor: '#A8871C',
-    wickDownColor: '#B8B7B5',
+    upColor: GOLD,           // растущая свеча — золото
+    downColor: PLATINUM,     // падающая свеча — платина
+    borderUpColor: GOLD,
+    borderDownColor: PLATINUM,
+    wickUpColor: GOLD,
+    wickDownColor: PLATINUM,
   })
   candleSeries.value = series
 
@@ -187,7 +212,7 @@ watch(
 </script>
 
 <template>
-  <div class="price-chart card">
+  <div class="price-chart card pl-card">
     <div class="chart-head">
       <h3 class="chart-title">График цены</h3>
       <span class="chart-hint">Золотые маркеры — новости с ИИ-аналитикой (клик — подробности)</span>
@@ -197,36 +222,42 @@ watch(
 </template>
 
 <style scoped>
+/* Flat-карточка Modern Platinum: тонкая платиновая рамка, радиус 2px,
+   без тени в покое. Только токены из tokens.css. */
 .card {
-  background: #ffffff;
-  border: 1px solid var(--color-platinum, #e5e4e2);
-  border-radius: 8px;
-  padding: 16px;
+  padding: var(--space-md);
 }
 
 .chart-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 12px;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
 }
 
 .chart-title {
   margin: 0;
-  font-size: 15px;
-  font-weight: 400;
-  letter-spacing: 0.03em;
-  color: var(--color-text-primary, #1a1a1a);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-regular);
+  letter-spacing: var(--ls-tight);
+  color: var(--color-ink);
 }
 
 .chart-hint {
-  font-size: 12px;
-  font-weight: 300;
-  color: var(--color-text-secondary, #6b6b6b);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  color: var(--color-grey-light);
 }
 
 .chart-body {
   width: 100%;
+}
+
+@media (max-width: 1023px) {
+  .chart-head {
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
 }
 </style>

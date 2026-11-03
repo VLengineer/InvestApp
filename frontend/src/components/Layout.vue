@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /**
- * Layout.vue — общий лейаут приложения по брендбуку:
- *  - Header: высота 64px, платиновый фон, тонкая золотая линия снизу;
- *  - Sidebar: вертикальное меню слева (240px), золотые акценты при hover;
- *  - Content Area: <router-view /> со страницами.
- * В меню — ссылки на существующую страницу «Анализатор новостей» и новый дашборд.
+ * Layout.vue — общий лейаут приложения в стиле «Modern Platinum»:
+ *  - Header: 64px, белый/платиновый, тонкая золотая линия снизу;
+ *  - Sidebar: вертикальное меню слева (240px), золотой акцент при hover;
+ *  - Content Area: <RouterView /> со страницами.
+ * Каркас (шапки, сайдбар, контейнеры) описан глобальными классами из
+ * styles/layout.css; здесь — только scoped-стили навигации на токенах.
  */
 import { useRoute } from 'vue-router'
 import { RouterLink, RouterView } from 'vue-router'
@@ -15,39 +16,43 @@ const links = [
   { to: '/', label: 'Анализатор новостей', exact: true },
   { to: '/dashboard', label: 'Финансовый дашборд', exact: false },
 ]
+
+function isActive(link: { to: string; exact: boolean }) {
+  return link.exact ? route.path === link.to : route.path.startsWith(link.to)
+}
 </script>
 
 <template>
-  <div class="layout">
+  <div class="app-layout">
     <!-- ===== Header: 64px, платина, тонкая золотая линия снизу ===== -->
-    <header class="header">
-      <div class="logo">
-        <span class="logo-mark">◆</span>
+    <header class="app-header">
+      <div class="app-logo">
+        <span class="logo-mark" aria-hidden="true">◆</span>
         <span class="logo-text">Финансовый терминал</span>
       </div>
-      <nav class="header-nav hidden md:flex">
+      <nav class="header-nav" aria-label="Основная навигация">
         <RouterLink
           v-for="link in links"
           :key="link.to"
           :to="link.to"
           class="header-link"
-          :class="{ 'header-link--active': link.exact ? route.path === link.to : route.path.startsWith(link.to) }"
+          :class="{ 'header-link--active': isActive(link) }"
         >
           {{ link.label }}
         </RouterLink>
       </nav>
     </header>
 
-    <div class="body">
+    <div class="app-body">
       <!-- ===== Sidebar: 240px, золотые акценты при hover ===== -->
-      <aside class="sidebar">
-        <nav class="sidebar-nav">
+      <aside class="app-sidebar">
+        <nav class="sidebar-nav" aria-label="Меню разделов">
           <RouterLink
             v-for="link in links"
             :key="link.to"
             :to="link.to"
             class="sidebar-link"
-            :class="{ 'sidebar-link--active': link.exact ? route.path === link.to : route.path.startsWith(link.to) }"
+            :class="{ 'sidebar-link--active': isActive(link) }"
           >
             {{ link.label }}
           </RouterLink>
@@ -55,7 +60,7 @@ const links = [
       </aside>
 
       <!-- ===== Content Area: страницы через router-view ===== -->
-      <main class="content">
+      <main class="app-content">
         <RouterView />
       </main>
     </div>
@@ -63,75 +68,53 @@ const links = [
 </template>
 
 <style scoped>
-/* Минимализм: без градиентов и теней, тонкие линии, чистые карточки. */
-.layout {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--color-background, #fafafa);
-}
-
-.header {
-  height: 64px;
-  flex: 0 0 64px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  background: var(--color-platinum-light, #f5f5f4);
-  border-bottom: 1px solid var(--color-gold, #d4af37); /* тонкая золотая линия */
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 300;
-  font-size: 18px;
-  letter-spacing: 0.04em;
-  color: var(--color-text-primary, #1a1a1a);
-}
-
-.logo-mark {
-  color: var(--color-gold, #d4af37);
-  font-size: 14px;
-}
-
+/* Навигация: underline-анимация ссылок (точечный золотой акцент),
+   всё — через токены, без хардкод-цветов. */
 .header-nav {
-  gap: 24px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
 }
 
 .header-link {
-  font-size: 14px;
-  font-weight: 300;
-  text-decoration: none;
-  color: var(--color-text-secondary, #6b6b6b);
-  padding-bottom: 2px;
-  border-bottom: 1px solid transparent;
-  transition: color 0.15s ease;
+  position: relative;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-light);
+  letter-spacing: var(--ls-tight);
+  color: var(--color-grey);
+  padding: var(--space-xs) 0;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+/* Hover-эффект: тонкая золотая линия снизу */
+.header-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--color-gold);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--duration-fast) var(--ease-out);
 }
 
 .header-link:hover {
-  color: var(--color-gold-dark, #a8871c);
+  color: var(--color-ink);
+}
+
+.header-link:hover::after {
+  transform: scaleX(1);
 }
 
 .header-link--active {
-  color: var(--color-text-primary, #1a1a1a);
-  border-bottom-color: var(--color-gold, #d4af37);
+  color: var(--color-ink);
+  font-weight: var(--fw-medium);
 }
 
-.body {
-  flex: 1;
-  display: flex;
-  min-height: 0;
-}
-
-.sidebar {
-  width: 240px;
-  flex: 0 0 240px;
-  background: var(--color-platinum-light, #f5f5f4);
-  border-right: 1px solid var(--color-platinum, #e5e4e2);
-  padding: 24px 0;
+.header-link--active::after {
+  transform: scaleX(1);
 }
 
 .sidebar-nav {
@@ -141,38 +124,44 @@ const links = [
 
 .sidebar-link {
   display: block;
-  padding: 12px 24px;
-  font-size: 14px;
-  font-weight: 300;
-  letter-spacing: 0.02em;
-  text-decoration: none;
-  color: var(--color-text-secondary, #6b6b6b);
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-light);
+  letter-spacing: var(--ls-tight);
+  color: var(--color-grey);
   border-left: 2px solid transparent;
-  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out),
+    padding-left var(--duration-fast) var(--ease-out);
 }
 
-/* Золотой акцент при hover */
+/* Золотой акцент при hover + лёгкий сдвиг вправо */
 .sidebar-link:hover {
-  color: var(--color-gold-dark, #a8871c);
-  border-left-color: var(--color-gold, #d4af37);
-  background: var(--color-platinum, #e5e4e2);
+  color: var(--color-ink);
+  border-left-color: var(--color-gold);
+  background: var(--color-gold-soft);
+  padding-left: calc(var(--space-md) + var(--space-xs));
 }
 
 .sidebar-link--active {
-  color: var(--color-text-primary, #1a1a1a);
-  border-left-color: var(--color-gold, #d4af37);
-  background: var(--color-gold-light, #f4e5b8);
+  color: var(--color-ink);
+  font-weight: var(--fw-medium);
+  border-left-color: var(--color-gold);
+  background: var(--color-bg-elevated);
 }
 
-.content {
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-}
-
-/* Адаптивность: на узких экранах скрываем сайдбар (дашборд — от 1280px) */
+/* Адаптив: на узких экранах скрываем верхнее меню и сайдбар
+   (каркас .app-sidebar скрыт в layout.css). */
 @media (max-width: 1023px) {
-  .sidebar {
+  .header-nav {
+    gap: var(--space-sm);
+  }
+}
+
+@media (max-width: 640px) {
+  .header-nav {
     display: none;
   }
 }

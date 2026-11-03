@@ -32,13 +32,24 @@ function clamp01(v: number | null | undefined): number {
  * Sentiment ∈ [-1, 1] → позиция на шкале 0..100% и цвет красный→зелёный.
  * Возвращаем ТОЛЬКО визуальные параметры — цифры не показываем (ТЗ).
  */
+/** Палитра шкал — из CSS-переменных tokens.css (Modern Platinum). */
+function cssVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return v || fallback
+}
+
+/** Sentiment ∈ [-1, 1] → позиция на шкале 0..100%; цвет по палитре стиля. */
 const sentiment = computed(() => {
   const s = props.news?.ai_sentiment_score
   if (s === null || s === undefined || !Number.isFinite(s)) return null
   const pos = ((clamp01((s + 1) / 2)) * 100).toFixed(0) // -1→0%, +1→100%
-  // Интерполяция HSV: красный (0°) → зелёный (120°)
-  const hue = (Number(pos) / 100) * 120
-  return { pos: `${pos}%`, color: `hsl(${hue}, 55%, 45%)` }
+  const p = Number(pos)
+  const color =
+    p < 50 ? cssVar('--color-platinum-dark', '#A8A8A8')
+    : p > 50 ? cssVar('--color-ink', '#111111')
+    : cssVar('--color-gold', '#B8935A')
+  return { pos: `${pos}%`, color }
 })
 
 /** Позиция серо-золотого прогресс-бара (relevance/confidence ∈ [0..1]). */
@@ -58,9 +69,10 @@ const impact = computed(() => {
   const v = props.news?.ai_expected_impact
   if (v === null || v === undefined || !Number.isFinite(v)) return null
   const c = clamp01(v)
-  if (c < 1 / 3) return { label: 'Низкое влияние', color: '#3E8E5A' }
-  if (c < 2 / 3) return { label: 'Среднее влияние', color: '#D9B21A' }
-  return { label: 'Высокое влияние', color: '#C0392B' }
+  // Шкала силы влияния — тона из палитры Modern Platinum (без ярких цветов)
+  if (c < 1 / 3) return { label: 'Низкое влияние', color: cssVar('--color-platinum-dark', '#A8A8A8') }
+  if (c < 2 / 3) return { label: 'Среднее влияние', color: cssVar('--color-gold', '#B8935A') }
+  return { label: 'Высокое влияние', color: cssVar('--color-ink', '#111111') }
 })
 
 const hasAi = computed(
@@ -164,149 +176,159 @@ function onOverlayClick(ev: MouseEvent) {
 </template>
 
 <style scoped>
-/* Светлый фон, тонкие линии, золотые акценты; без градиентов-тени на карточке. */
+/* Модалка новости: светлый фон, тонкие платиновые линии, золото — точечный
+   акцент; радиусы 2px, тень только у «поднятого» слоя. Только токены. */
 .overlay {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(26, 26, 26, 0.35);
+  background: var(--color-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: var(--space-md);
+  animation: overlay-fade var(--duration-fast) var(--ease-out) both;
 }
 
 .card {
-  background: #ffffff;
-  border: 1px solid var(--color-platinum-dark, #b8b7b5);
-  border-top: 2px solid var(--color-gold, #d4af37);
-  border-radius: 8px;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-platinum);
+  border-top: 2px solid var(--color-gold);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-medium); /* тень поднятого слоя — допустима */
   width: min(680px, 100%);
   max-height: 85vh;
   display: flex;
   flex-direction: column;
+  animation: modal-rise var(--duration-normal) var(--ease-out) both;
 }
 
 .head {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
-  padding: 20px 24px 12px;
-  border-bottom: 1px solid var(--color-platinum, #e5e4e2);
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-md) var(--space-sm);
+  border-bottom: 1px solid var(--color-platinum);
 }
 
 .kicker {
   margin: 0 0 4px;
-  font-size: 11px;
-  letter-spacing: 0.1em;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-wide);
   text-transform: uppercase;
-  color: var(--color-gold-dark, #a8871c);
+  color: var(--color-gold);
 }
 
 .title {
   margin: 0;
-  font-size: 19px;
-  font-weight: 400;
-  line-height: 1.3;
-  color: var(--color-text-primary, #1a1a1a);
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-light);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  color: var(--color-ink);
 }
 
 .meta {
   margin: 6px 0 0;
-  font-size: 12px;
-  font-weight: 300;
-  color: var(--color-text-secondary, #6b6b6b);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  color: var(--color-grey-light);
 }
 
 .close {
   align-self: flex-start;
-  border: 1px solid var(--color-platinum, #e5e4e2);
-  background: #ffffff;
-  color: var(--color-text-secondary, #6b6b6b);
-  border-radius: 6px;
+  border: 1px solid var(--color-platinum);
+  background: var(--color-bg-elevated);
+  color: var(--color-grey);
+  border-radius: var(--radius-sm);
   width: 32px;
   height: 32px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--fs-small);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
 }
 
 .close:hover {
-  color: var(--color-gold-dark, #a8871c);
-  border-color: var(--color-gold, #d4af37);
+  color: var(--color-gold-hover);
+  border-color: var(--color-gold);
 }
 
 .body {
   overflow-y: auto;
-  padding: 8px 24px 24px;
+  padding: var(--space-sm) var(--space-md) var(--space-md);
 }
 
 .section {
-  margin-top: 18px;
+  margin-top: var(--space-sm);
 }
 
 .section-title {
-  margin: 0 0 8px;
-  font-size: 12px;
-  font-weight: 400;
-  letter-spacing: 0.08em;
+  margin: 0 0 var(--space-xs);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-wide);
   text-transform: uppercase;
-  color: var(--color-text-secondary, #6b6b6b);
+  color: var(--color-grey-light);
 }
 
 .section-title.gold {
-  color: var(--color-gold-dark, #a8871c);
+  color: var(--color-gold);
 }
 
 .content-text,
 .summary-text {
   margin: 0;
-  font-size: 14px;
-  font-weight: 300;
-  line-height: 1.6;
-  color: var(--color-text-primary, #1a1a1a);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-light);
+  line-height: var(--lh-normal);
+  color: var(--color-ink-soft);
 }
 
 .ai-summary {
-  border-left: 2px solid var(--color-gold, #d4af37);
-  padding-left: 14px;
+  border-left: 2px solid var(--color-gold);
+  padding-left: var(--space-sm);
 }
 
 /* Прогресс-бары оценок ИИ — без цифр */
 .meter {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-sm);
   margin-bottom: 10px;
 }
 
 .meter-label {
   flex: 0 0 120px;
-  font-size: 13px;
-  font-weight: 300;
-  color: var(--color-text-secondary, #6b6b6b);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  color: var(--color-grey);
 }
 
 .bar {
   position: relative;
   flex: 1;
   height: 6px;
-  border-radius: 3px;
-  background: var(--color-platinum-light, #f5f5f4);
-  border: 1px solid var(--color-platinum, #e5e4e2);
+  border-radius: var(--radius-none);
+  background: var(--color-platinum-soft);
+  border: 1px solid var(--color-platinum);
 }
 
+/* Единственный допустимый градиент — приглушённая шкала стиля */
 .bar--gradient-red-green {
-  background: linear-gradient(90deg, #c0392b, #d9b21a, #3e8e5a);
+  background: linear-gradient(90deg, var(--color-platinum-dark), var(--color-gold), var(--color-ink));
   border: none;
 }
 
 .bar-fill {
   height: 100%;
-  border-radius: 3px;
+  border-radius: var(--radius-none);
 }
 
 .fill-gold {
-  background: linear-gradient(90deg, var(--color-platinum-dark, #b8b7b5), var(--color-gold, #d4af37));
+  background: var(--color-gold);
 }
 
 .bar-thumb {
@@ -316,7 +338,7 @@ function onOverlayClick(ev: MouseEvent) {
   height: 12px;
   border-radius: 50%;
   transform: translateX(-50%);
-  border: 2px solid #ffffff;
+  border: 2px solid var(--color-bg-elevated);
 }
 
 .impact-dot {
@@ -327,41 +349,52 @@ function onOverlayClick(ev: MouseEvent) {
 }
 
 .impact-label {
-  font-size: 13px;
-  font-weight: 300;
-  color: var(--color-text-primary, #1a1a1a);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  color: var(--color-ink-soft);
 }
 
 /* Финансовые данные */
 .fin-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 10px;
+  gap: var(--space-xs);
   margin: 0;
 }
 
 .fin-grid > div {
-  border: 1px solid var(--color-platinum, #e5e4e2);
-  border-radius: 6px;
-  padding: 10px 12px;
-  background: var(--color-platinum-light, #f5f5f4);
+  border: 1px solid var(--color-platinum);
+  border-radius: var(--radius-sm);
+  padding: 10px var(--space-sm);
+  background: var(--color-platinum-soft);
 }
 
 .fin-grid dt {
-  font-size: 11px;
-  letter-spacing: 0.06em;
+  font-size: var(--fs-micro);
+  letter-spacing: var(--ls-normal);
   text-transform: uppercase;
-  color: var(--color-text-secondary, #6b6b6b);
+  color: var(--color-grey-light);
   margin-bottom: 4px;
 }
 
 .fin-grid dd {
   margin: 0;
-  font-size: 15px;
-  font-weight: 300;
-  color: var(--color-text-primary, #1a1a1a);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-light);
+  color: var(--color-ink);
 }
 
-.fin-grid .up { color: #3e8e5a; }
-.fin-grid .down { color: #c0392b; }
+/* «Покупки/продажи» — тона палитры, без ярких цветов */
+.fin-grid .up { color: var(--color-gold); }
+.fin-grid .down { color: var(--color-platinum-dark); }
+
+@media (max-width: 640px) {
+  .overlay {
+    padding: var(--space-sm);
+  }
+
+  .meter-label {
+    flex-basis: 90px;
+  }
+}
 </style>
