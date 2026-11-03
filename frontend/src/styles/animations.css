@@ -1,0 +1,70 @@
+/* ============================================================
+   animations.css — лёгкие анимации Modern Platinum.
+   Только fade + slide с --ease-out; никаких bounce/shake/spin.
+   ============================================================ */
+
+/* ---------- Появление hero при загрузке (fade-in + slide-up) ---------- */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-hero {
+  animation: reveal-up var(--duration-slow) var(--ease-out) both;
+}
+
+/* Каскад дочерних элементов hero — через задержку */
+.animate-hero-delay-1 { animation-delay: 0.1s; }
+.animate-hero-delay-2 { animation-delay: 0.2s; }
+.animate-hero-delay-3 { animation-delay: 0.3s; }
+
+/* ---------- Появление секций при скролле (IntersectionObserver
+   добавляет класс .is-visible; composable useRevealOnScroll) ---------- */
+.reveal {
+  opacity: 0;
+  transform: translateY(30px);
+  transition:
+    opacity var(--duration-slow) var(--ease-out),
+    transform var(--duration-slow) var(--ease-out);
+  will-change: opacity, transform;
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---------- Появление модалок/дропдаунов ---------- */
+@keyframes overlay-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes modal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-overlay {
+  animation: overlay-fade var(--duration-fast) var(--ease-out) both;
+}
+
+.animate-modal {
+  animation: modal-rise var(--duration-normal) var(--ease-out) both;
+}
+
+.animate-dropdown {
+  animation: modal-rise var(--duration-fast) var(--ease-out) both;
+}

@@ -27,20 +27,31 @@ function barWidth(v: number | null | undefined): string {
   return `${Math.min(100, Math.max(0, v * 100)).toFixed(0)}%`
 }
 
-/** Sentiment [-1..1] → позиция маркера и цвет красный→зелёный. */
+/** Палитра шкалы sentiment — из CSS-переменных tokens.css (Modern Platinum). */
+function cssVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return v || fallback
+}
+
+/** Sentiment [-1..1] → позиция маркера; цвет: платина → золото → чёрный. */
 const sentiment = computed(() => {
   const s = latest.value?.ai_sentiment_score
   if (s === null || s === undefined || !Number.isFinite(s)) return null
   const pos = Math.min(100, Math.max(0, ((s + 1) / 2) * 100))
-  return { pos: `${pos.toFixed(0)}%`, color: `hsl(${(pos / 100) * 120}, 55%, 45%)` }
+  const color =
+    pos < 50 ? cssVar('--color-platinum-dark', '#A8A8A8')
+    : pos > 50 ? cssVar('--color-ink', '#111111')
+    : cssVar('--color-gold', '#B8935A')
+  return { pos: `${pos.toFixed(0)}%`, color }
 })
 </script>
 
 <template>
-  <div v-if="latest" class="ai-card card">
+  <div v-if="latest" class="ai-card card pl-card pl-card--accent">
     <div class="head">
       <h3 class="title">Аналитика ИИ</h3>
-      <span v-if="latest.ts" class="time">{{ new Date(latest.ts).toLocaleString('ru-RU') }}</span>
+      <span v-if="latest.ts" class="meta">{{ new Date(latest.ts).toLocaleString('ru-RU') }}</span>
     </div>
 
     <p class="summary">{{ latest.ai_text_summary }}</p>
@@ -65,87 +76,103 @@ const sentiment = computed(() => {
 </template>
 
 <style scoped>
+/* Modern Platinum: flat-карточка с золотой линией слева (аналитический блок),
+   радиусы 2px, без теней в покое. Только токены из tokens.css. */
 .card {
-  background: #ffffff;
-  border: 1px solid var(--color-platinum, #e5e4e2);
-  border-left: 2px solid var(--color-gold, #d4af37);
-  border-radius: 8px;
-  padding: 16px;
+  padding: var(--space-md);
 }
 
 .head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 8px;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.kicker {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-ultra);
+  text-transform: uppercase;
+  color: var(--color-gold);
+}
+
+.meta {
+  margin-left: auto;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  color: var(--color-grey-light);
 }
 
 .title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-gold-dark, #a8871c);
-}
-
-.time {
-  font-size: 12px;
-  font-weight: 300;
-  color: var(--color-text-secondary, #6b6b6b);
+  margin: 0 0 var(--space-sm);
+  font-size: var(--fs-h3);
+  font-weight: var(--fw-light);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-tight);
+  color: var(--color-ink);
 }
 
 .summary {
-  margin: 0 0 12px;
-  font-size: 14px;
-  font-weight: 300;
-  line-height: 1.55;
-  color: var(--color-text-primary, #1a1a1a);
+  margin: 0 0 var(--space-sm);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-light);
+  line-height: var(--lh-normal);
+  color: var(--color-ink-soft);
 }
 
 .meter {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 6px;
+  gap: var(--space-sm);
+  margin-top: var(--space-xs);
 }
 
 .label {
   flex: 0 0 90px;
-  font-size: 12px;
-  font-weight: 300;
-  color: var(--color-text-secondary, #6b6b6b);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  letter-spacing: var(--ls-tight);
+  color: var(--color-grey);
 }
 
 .bar {
   position: relative;
   flex: 1;
-  height: 5px;
-  border-radius: 3px;
-  background: var(--color-platinum-light, #f5f5f4);
-  border: 1px solid var(--color-platinum, #e5e4e2);
+  height: 4px;
+  border-radius: var(--radius-none);
+  background: var(--color-platinum-soft);
+  border: 1px solid var(--color-platinum);
   overflow: visible;
 }
 
+/* Единственный допустимый градиент — «сигнал» от минимума к максимуму,
+   приглушённые тона палитры (тёмный → золото → светлый). */
 .bar.gradient {
-  background: linear-gradient(90deg, #c0392b, #d9b21a, #3e8e5a);
+  background: linear-gradient(90deg, var(--color-ink), var(--color-gold), var(--color-platinum));
   border: none;
 }
 
 .fill {
   display: block;
   height: 100%;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--color-platinum-dark, #b8b7b5), var(--color-gold, #d4af37));
+  background: var(--color-gold);
 }
 
 .thumb {
   position: absolute;
-  top: -4px;
-  width: 11px;
-  height: 11px;
+  top: -5px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   transform: translateX(-50%);
-  border: 2px solid #fff;
+  background: var(--color-bg-elevated);
+  border: 2px solid var(--color-ink);
+}
+
+.empty {
+  font-size: var(--fs-small);
+  font-weight: var(--fw-light);
+  color: var(--color-grey-light);
 }
 </style>
