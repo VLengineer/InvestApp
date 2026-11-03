@@ -50,9 +50,6 @@ services:
       - app_net
 
   n8n:
-    build:
-      context: ./n8n
-      dockerfile: Dockerfile
     image: n8nio/n8n:latest
     container_name: n8n
     restart: unless-stopped
@@ -107,6 +104,10 @@ services:
     restart: unless-stopped
     ports:
       - "${FRONTEND_BIND_IP:-0.0.0.0}:${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
     environment:
       # базовый URL контейнера n8n из внутренней сети app_net (дефолт — http://n8n:5678/)
       VITE_N8N_BASE_URL: "${N8N_CONTAINER_URL:-http://n8n:5678/}"
@@ -119,9 +120,6 @@ services:
     networks:
       - app_net
 
-  # --- scheduler_service: планировщик опроса n8n (FastAPI + очередь задач в PostgreSQL) ---
-  # Отдельный контейнер-микросервис: HTTP API (/api/v1/scheduler/*) + фоновый воркер,
-  # который циклически создаёт задачи, дёргает вебхук n8n и ждёт callback-и в БД.
   scheduler_service:
     build:
       context: ./scheduler_service

@@ -1,10 +1,12 @@
 # Vue-фронтенд «Анализатор новостей» (Vite dev-сервер внутри контейнера)
-FROM node:20-alpine
+FROM node:24
+
+EXPOSE 8888
 
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install --no-audit --no-fund
+COPY package*.json ./
+RUN npm install --no-audit --no-fund --registry=https://registry.npmmirror.com
 
 COPY . .
 

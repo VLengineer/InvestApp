@@ -120,7 +120,7 @@ class SchedulerWorker:
         final_status = await self._wait_for_callback(task_id)
 
         if final_status == "completed":
-            logger.info("Задача %s успешно завершена. Ожидание 10 минут перед следующим запуском.", task_id)
+            logger.info("Задача %s успешно завершена. Ожидание 5 минут перед следующим запуском.", task_id)
             await asyncio.sleep(self._settings.sleep_after_completed_s)
         elif final_status == "rejected":
             logger.info("Задача %s отклонена. Ожидание 5 минут перед следующим запуском.", task_id)

@@ -13,7 +13,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app ./app
 # Каждый микросервис — своя папка внутри python_test (см. MICROSERVICES.md);
 # все такие папки копируются в образ одним блоком ниже.
-COPY news_analyzer ./news_analyzer
 COPY knowledge_base ./knowledge_base
 # Данные микросервиса company_profiles: cp.json (путь фиксирован в конфиге —
 # COMPANY_PROFILES_JSON / DEFAULT_CP_JSON, эндпоинт /ingest его не принимает).

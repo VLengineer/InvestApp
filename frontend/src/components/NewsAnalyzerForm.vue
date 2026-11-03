@@ -3,14 +3,13 @@ import { reactive, ref } from 'vue'
 
 const props = defineProps({
   webhookUrl: { type: String, required: true },
-  // Токен из окружения (VITE_N8N_AUTH_TOKEN ← N8N_AUTH_TOKEN в корневом .env).
-  // Если задан — добавляется заголовок Authorization: Bearer <token>.
   authToken: { type: String, default: '' },
 })
 
 // Поля формы — ровно те, что уходят JSON-телом на вебхук n8n
 const form = reactive({
-  ticker: '',
+  task_id: '',
+  figi: '',
   source: '',
   title: '',
   content: '',
@@ -31,11 +30,12 @@ async function analyze() {
   }
 
   const payload = {
+    task_id: form.task_id.trim(),
+    figi: form.figi.trim(),
     source: form.source.trim(),
     title: form.title.trim(),
     content: form.content.trim(),
     ts: form.ts,
-    ticker: form.ticker.trim(),
   }
 
   loading.value = true
@@ -80,8 +80,13 @@ function refreshTs() {
 <template>
   <form class="card" @submit.prevent="analyze">
     <div class="field">
-      <label for="ticker">Тикер</label>
-      <input id="ticker" v-model="form.ticker" type="text" placeholder="например: SBER" />
+      <label for="task_id">task_id</label>
+      <input id="task_id" v-model="form.task_id" type="text" placeholder="например: SBER" />
+    </div>
+
+    <div class="field">
+      <label for="figi">FIGI</label>
+      <input id="figi" v-model="form.figi" type="text" placeholder="например: SBER" />
     </div>
 
     <div class="field">

@@ -22,8 +22,6 @@ from app.services.company_search_service import CompanySearchService
 from app.services.indexing_service import IndexingService
 from app.services.kb_reader import KnowledgeBaseReader
 from app.workers.task_registry import TaskRegistry
-from app.news_analyzer.repository import NewsRepository
-from app.news_analyzer.service import NewsAnalyzerService
 
 logger = logging.getLogger(__name__)
 
@@ -58,8 +56,6 @@ class Container:
     registry: TaskRegistry
     indexing: IndexingService
     # --- микросервис news_analyzer (код: python_test/news_analyzer/) ---
-    news_repository: NewsRepository
-    news_analyzer: NewsAnalyzerService
     # --- микросервис company_profiles (код: app/services/company_profiles_service.py) ---
     company_profile_repository: CompanyProfileRepository
     company_profiles: CompanyProfilesService
@@ -81,8 +77,6 @@ class Container:
         repository = _LazyRepository(database, model=settings.embedding_model)
         indexing = IndexingService(settings, reader, embedder, repository, registry)
         # Микросервис анализа новостей: репозиторий берёт живой пул у Database
-        news_repository = NewsRepository(database)
-        news_analyzer = NewsAnalyzerService(news_repository)
         # Company profiles: cp.json -> эмбеддинги -> таблица company_profiles
         company_profile_repository = CompanyProfileRepository(database)
         company_profiles = CompanyProfilesService(settings, embedder, company_profile_repository)
@@ -91,7 +85,6 @@ class Container:
         company_search = CompanySearchService(settings, embedder, company_profile_repository)
         return cls(
             settings, database, embedder, reader, repository, registry, indexing,
-            news_repository, news_analyzer,
             company_profile_repository, company_profiles,
             company_search,
         )
@@ -99,7 +92,6 @@ class Container:
     async def startup(self) -> None:
         await self.database.connect()
         await self.database.ensure_schema()
-        await self.news_repository.ensure_schema()
         await self.company_profile_repository.ensure_schema()
         logger.info("Схема БД проверена; эмбеддинг-модель: %s", self.settings.embedding_model)
         # Явно проверяем Ollama при старте и пишем результат в лог контейнера —

@@ -4,13 +4,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.routes import company_profiles, health, indicators, news, rag
+from app.api.routes import company_profiles, health, indicators, rag
 
 api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(rag.router)
-# Микросервис news_analyzer: эндпоинты здесь, код — в python_test/news_analyzer/
-api_router.include_router(news.router)
 # Теханализ: POST /indicators/calculate (код — в app/services/indicators_service.py)
 api_router.include_router(indicators.router)
 # Профили компаний: /company-profiles/* (код — в app/services/company_profiles_service.py)

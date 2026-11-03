@@ -1,0 +1,342 @@
+{
+  "kb_documents": {
+    "document_id": {
+      "type": "uuid",
+      "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+    },
+    "source_path": {
+      "type": "text",
+      "constraints": "NOT NULL"
+    },
+    "concept_id": {
+      "type": "text",
+      "constraints": "NOT NULL"
+    },
+    "title": {
+      "type": "text",
+      "constraints": null
+    },
+    "category": {
+      "type": "text",
+      "constraints": null
+    },
+    "payload": {
+      "type": "jsonb",
+      "constraints": "NOT NULL"
+    },
+    "content_hash": {
+      "type": "char(64)",
+      "constraints": "NOT NULL"
+    },
+    "indexed_at": {
+      "type": "timestamptz",
+      "constraints": "NOT NULL DEFAULT now()"
+    }
+  },
+  "kb_embeddings": {
+    "embedding_id": {
+      "type": "bigint",
+      "constraints": "PRIMARY KEY GENERATED ALWAYS AS IDENTITY"
+    },
+    "document_id": {
+      "type": "uuid",
+      "constraints": "NOT NULL REFERENCES kb_documents(document_id) ON DELETE CASCADE"
+    },
+    "chunk_index": {
+      "type": "int",
+      "constraints": "NOT NULL DEFAULT 0"
+    },
+    "model": {
+      "type": "text",
+      "constraints": "NOT NULL"
+    },
+    "embedding": {
+      "type": "vector(768)",
+      "constraints": "NOT NULL"
+    },
+    "created_at": {
+      "type": "timestamptz",
+      "constraints": "NOT NULL DEFAULT now()"
+    }
+  },
+  "market_news_ml_dataset": {
+    "id": {
+      "type": "UUID",
+      "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+    },
+    "ticker": {
+      "type": "VARCHAR(16)",
+      "constraints": null
+    },
+    "source": {
+      "type": "VARCHAR(255)",
+      "constraints": "NOT NULL"
+    },
+    "title": {
+      "type": "TEXT",
+      "constraints": "NOT NULL"
+    },
+    "content": {
+      "type": "TEXT",
+      "constraints": "NOT NULL"
+    },
+    "ts": {
+      "type": "TIMESTAMP(9) WITH TIME ZONE",
+      "constraints": "NOT NULL"
+    },
+    "candle_time": {
+      "type": "TIMESTAMP(9) WITH TIME ZONE",
+      "constraints": null
+    },
+    "open_price": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "high_price": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "low_price": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "close_price": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "volume": {
+      "type": "BIGINT",
+      "constraints": null
+    },
+    "volume_buy": {
+      "type": "BIGINT",
+      "constraints": null
+    },
+    "volume_sell": {
+      "type": "BIGINT",
+      "constraints": null
+    },
+    "is_complete": {
+      "type": "BOOLEAN",
+      "constraints": null
+    },
+    "rsi_14": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "stoch_k": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "stoch_d": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "cci_20": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "williams_r": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "roc_12": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "mfi_14": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "macd": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "macd_signal": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "adx_14": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "atr_14": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "ai_sentiment_score": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "ai_relevance_score": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "ai_expected_impact": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "ai_confidence": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "ai_text_summary": {
+      "type": "TEXT",
+      "constraints": null
+    },
+    "ai_raw_response": {
+      "type": "JSONB",
+      "constraints": null
+    },
+    "target_horizon_minutes": {
+      "type": "INT",
+      "constraints": "NOT NULL DEFAULT 60"
+    },
+    "target_future_return_pct": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    },
+    "target_direction": {
+      "type": "SMALLINT",
+      "constraints": null
+    },
+    "target_volatility_threshold_pct": {
+      "type": "DOUBLE PRECISION",
+      "constraints": null
+    }
+  },
+  "company_profiles": {
+    "id": {
+      "type": "BIGSERIAL",
+      "constraints": "PRIMARY KEY"
+    },
+    "company_name": {
+      "type": "TEXT",
+      "constraints": "NOT NULL"
+    },
+    "ticker": {
+      "type": "TEXT",
+      "constraints": null
+    },
+    "figi": {
+      "type": "TEXT",
+      "constraints": "UNIQUE"
+    },
+    "description": {
+      "type": "TEXT",
+      "constraints": null
+    },
+    "business_model": {
+      "type": "TEXT",
+      "constraints": null
+    },
+    "market_position": {
+      "type": "TEXT",
+      "constraints": null
+    },
+    "target_audience": {
+      "type": "TEXT",
+      "constraints": null
+    },
+    "geography": {
+      "type": "TEXT",
+      "constraints": null
+    },
+    "competitors": {
+      "type": "TEXT",
+      "constraints": null
+    },
+    "regulatory_dependencies": {
+      "type": "TEXT",
+      "constraints": null
+    },
+    "technology_stack": {
+      "type": "TEXT",
+      "constraints": null
+    },
+    "historical_patterns": {
+      "type": "TEXT",
+      "constraints": null
+    },
+    "keywords_for_embedding": {
+      "type": "JSONB",
+      "constraints": null
+    },
+    "related_entities": {
+      "type": "JSONB",
+      "constraints": null
+    },
+    "news_triggers": {
+      "type": "JSONB",
+      "constraints": null
+    },
+    "key_products": {
+      "type": "JSONB",
+      "constraints": null
+    },
+    "key_figures": {
+      "type": "JSONB",
+      "constraints": null
+    },
+    "financial_metrics_of_interest": {
+      "type": "JSONB",
+      "constraints": null
+    },
+    "correlation_factors": {
+      "type": "JSONB",
+      "constraints": null
+    },
+    "embedding": {
+      "type": "VECTOR(768)",
+      "constraints": null
+    },
+    "embedding_model": {
+      "type": "TEXT",
+      "constraints": null
+    },
+    "embedding_dim": {
+      "type": "INT",
+      "constraints": null
+    },
+    "embed_text": {
+      "type": "TEXT",
+      "constraints": null
+    },
+    "created_at": {
+      "type": "TIMESTAMPTZ",
+      "constraints": "NOT NULL DEFAULT now()"
+    },
+    "updated_at": {
+      "type": "TIMESTAMPTZ",
+      "constraints": "NOT NULL DEFAULT now()"
+    }
+  },
+  "scheduler_state": {
+    "id": {
+      "type": "INT",
+      "constraints": "PRIMARY KEY DEFAULT 1 CHECK (id = 1)"
+    },
+    "is_active": {
+      "type": "BOOLEAN",
+      "constraints": "NOT NULL DEFAULT TRUE"
+    }
+  },
+  "tasks": {
+    "id": {
+      "type": "uuid",
+      "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()"
+    },
+    "status": {
+      "type": "VARCHAR(16)",
+      "constraints": "NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'rejected'))"
+    },
+    "created_at": {
+      "type": "TIMESTAMPTZ",
+      "constraints": "NOT NULL DEFAULT now()"
+    },
+    "updated_at": {
+      "type": "TIMESTAMPTZ",
+      "constraints": "NOT NULL DEFAULT now()"
+    }
+  }
+}
