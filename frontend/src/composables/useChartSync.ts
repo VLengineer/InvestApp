@@ -73,6 +73,13 @@ export function useChartSync() {
    * Применить окно к конкретному ECharts-графику.
    * Графики используют `dataZoom` c startValue/endValue — программный зум
    * без анимаций и с корректным crosshair.
+   *
+   * ВАЖНО: тип 'hidden' существует только в полной сборке echarts (плагин
+   * installDataZoomHidden). В модульной сборке echarts/core (используется
+   * в проекте) он не зарегистрирован и приводил к фатальной ошибке
+   * "Component dataZoom.hidden is used but not imported". Используем
+   * 'inside' — у него нет view-класса (панель не рисуется), но опции окна
+   * работают так же.
    */
   function applyToInstance(inst: { setOption: (o: never, cfg?: object) => void }) {
     const s = startIdx.value
@@ -80,7 +87,16 @@ export function useChartSync() {
     inst.setOption(
       {
         dataZoom: [
-          { type: 'hidden', xAxisIndex: 0, startValue: s, endValue: Math.max(s + 1, e - 1) },
+          {
+            type: 'inside',
+            xAxisIndex: 0,
+            zoomOnMouseWheel: false,
+            moveOnMouseMove: false,
+            moveOnMouseWheel: false,
+            preventDefaultMouseMove: false,
+            startValue: s,
+            endValue: Math.max(s + 1, e - 1),
+          },
         ],
       } as never,
       { replaceMerge: [] },

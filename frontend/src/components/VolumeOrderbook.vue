@@ -121,20 +121,37 @@ function fmt(n: number): string {
 
 /* ---------------- Lifecycle ---------------- */
 
-let onResize: (() => void) | null = null
+/**
+ * Ресайз через rAF-батчинг: ECharts запрещает resize() во время «main
+ * process» (внутреннего update-цикла); прямой вызов из события 'resize'
+ * мог попасть в этот момент и ронял ошибку "`resize` should not be called
+ * during main process".
+ */
+let volRaf = 0
+
+function scheduleVolResize() {
+  if (volRaf) return
+  volRaf = requestAnimationFrame(() => {
+    volRaf = 0
+    Promise.resolve().then(() => {
+      if (volChart && !volChart.isDisposed()) volChart.resize({ animation: { duration: 0 } })
+    })
+  })
+}
 
 onMounted(() => {
   syncPaletteFromTokens()
   if (volEl.value) {
     volChart = echarts.init(volEl.value, undefined, { renderer: 'canvas' })
     renderVolumes(props.data)
-    onResize = () => volChart?.resize()
-    window.addEventListener('resize', onResize)
+    window.addEventListener('resize', scheduleVolResize)
   }
 })
 
 onBeforeUnmount(() => {
-  if (onResize) window.removeEventListener('resize', onResize)
+  if (volRaf) cancelAnimationFrame(volRaf)
+  volRaf = 0
+  window.removeEventListener('resize', scheduleVolResize)
   volChart?.dispose()
   volChart = null
 })
