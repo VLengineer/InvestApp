@@ -10,7 +10,7 @@
  * `.is-visible` (стили перехода — в animations.css). После показа
  * наблюдатель отключается — анимация проигрывается один раз.
  */
-import { onBeforeUnmount, onMounted, shallowRef } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, shallowRef } from 'vue'
 
 export interface RevealOptions {
   /** Доля видимости элемента для срабатывания (по умолчанию 0.15). */
@@ -26,14 +26,28 @@ export function useRevealOnScroll(options: RevealOptions = {}) {
   const revealRef = shallowRef<HTMLElement | null>(null)
 
   let observer: IntersectionObserver | null = null
+  let mutationObserver: MutationObserver | null = null
 
-  onMounted(() => {
+  function markVisible(el: Element) {
+    el.classList.add('is-visible')
+  }
+
+  function observeNewTargets(root: HTMLElement) {
+    if (!observer) return
+    const targets = root.matches('.reveal')
+      ? [root]
+      : Array.from(root.querySelectorAll('.reveal:not(.is-visible)'))
+    targets.forEach((el) => observer!.observe(el))
+  }
+
+  onMounted(async () => {
+    await nextTick()
     const root = revealRef.value
     if (!root) return
 
     // Браузеры без IntersectionObserver — показываем контент сразу
     if (typeof IntersectionObserver === 'undefined') {
-      root.querySelectorAll('.reveal').forEach((el) => el.classList.add('is-visible'))
+      root.querySelectorAll('.reveal').forEach(markVisible)
       return
     }
 
@@ -48,13 +62,29 @@ export function useRevealOnScroll(options: RevealOptions = {}) {
       { threshold, rootMargin },
     )
 
-    const targets = root.matches('.reveal') ? [root] : Array.from(root.querySelectorAll('.reveal'))
-    targets.forEach((el) => observer!.observe(el))
+    observeNewTargets(root)
+
+    // Динамические секции (графики появляются после выбора FIGI):
+    // следим за DOM-деревом и навешиваем наблюдатель на новые .reveal-узлы.
+    if (typeof MutationObserver !== 'undefined') {
+      mutationObserver = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          m.addedNodes.forEach((node) => {
+            if (!(node instanceof HTMLElement)) return
+            if (node.matches('.reveal:not(.is-visible)')) observer?.observe(node)
+            node.querySelectorAll('.reveal:not(.is-visible)').forEach((el) => observer?.observe(el))
+          })
+        }
+      })
+      mutationObserver.observe(root, { childList: true, subtree: true })
+    }
   })
 
   onBeforeUnmount(() => {
     observer?.disconnect()
     observer = null
+    mutationObserver?.disconnect()
+    mutationObserver = null
   })
 
   return { revealRef }
