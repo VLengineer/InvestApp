@@ -79,15 +79,33 @@ function dedupeByTime<T extends { time: number }>(arr: T[]): T[] {
   return [...map.values()].sort((a, b) => a.time - b.time)
 }
 
+/** Смещение локального часового пояса (Europe/Moscow) относительно UTC, сек. */
+const LOCAL_UTC_OFFSET_SEC = new Date().getTimezoneOffset() * -60
+
+/**
+ * Форматирование unix-секунд (из БД — в UTC, нулевой пояс) в время по Москве:
+ * перед отрисовкой прибавляем смещение локального пояса (+3 ч) и берём
+ * UTC-компоненты сдвинутой даты — так метки оси и тултипы показываются
+ * «по Москве», а сами данные остаются в UTC.
+ */
+export function formatUtcAsMoscow(utcSeconds: number): string {
+  const d = new Date((utcSeconds + LOCAL_UTC_OFFSET_SEC) * 1000)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`
+}
+
 /** Метки оси X для ECharts (HH:MM внутри суток, иначе DD.MM). */
 export function timeLabels(times: number[]): string[] {
   const daySec = 86400
   const spanSec = times.length > 1 ? times[times.length - 1] - times[0] : 0
   const withinOneDay = spanSec <= daySec * 0.95
   return times.map((t) => {
-    const d = new Date(t * 1000)
+    // Данные в БД — в UTC; сдвигаем на локальное смещение (+3 ч для Москвы)
+    // и берём UTC-компоненты, чтобы метки не зависели от пояса браузера.
+    const d = new Date((t + LOCAL_UTC_OFFSET_SEC) * 1000)
+    const p = (n: number) => String(n).padStart(2, '0')
     return withinOneDay
-      ? d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-      : d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
+      ? `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`
+      : `${p(d.getUTCDate())}.${p(d.getUTCMonth() + 1)}`
   })
 }
