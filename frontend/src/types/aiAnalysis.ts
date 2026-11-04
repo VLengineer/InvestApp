@@ -248,9 +248,11 @@ const PROBABILITY_LABELS: Record<string, Badge> = {
 
 const FAIR_VALUE_LABELS: Record<string, Badge> = {
   decline: { label: 'Справедливая стоимость: снижение', tone: 'dark' },
+  growth: { label: 'Справедливая стоимость: рост', tone: 'gold' },
   up: { label: 'Справедливая стоимость: рост', tone: 'gold' },
   upgrade: { label: 'Справедливая стоимость: рост', tone: 'gold' },
   increase: { label: 'Справедливая стоимость: рост', tone: 'gold' },
+  neutral: { label: 'Справедливая стоимость: без изменений', tone: 'neutral' },
   unchanged: { label: 'Справедливая стоимость: без изменений', tone: 'neutral' },
   hold: { label: 'Справедливая стоимость: без изменений', tone: 'neutral' },
 }
