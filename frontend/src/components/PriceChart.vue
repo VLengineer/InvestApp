@@ -25,8 +25,29 @@ import {
   type MouseEventParams,
 } from 'lightweight-charts'
 import type { MarketDataItem } from '../types/market'
-import { candleTime, hasAiSummary, toCandles, upsertByTime, type CandlePoint } from '../utils/chartData'
+import {
+  candleTime,
+  formatUtcAsMoscow,
+  hasAiSummary,
+  toCandles,
+  upsertByTime,
+  type CandlePoint,
+} from '../utils/chartData'
 import { useChartSync, type ChartSync } from '../composables/useChartSync'
+
+/**
+ * Данные в БД хранятся в UTC (нулевой пояс). Основной свечной график
+ * Lightweight Charts форматирует время по UTC-компонентам, поэтому перед
+ * отрисовкой сдвигаем unix-секунды на локальное смещение (+3 ч для Москвы)
+ * — ticks и тултип отображаются по Москве. Обратный сдвиг нужен при
+ * поиске свечи/маркера по «смещённому» времени из time-scale. Остальные
+ * графики (ECharts, category axis + локальные метки) корректны без правок.
+ */
+const LOCAL_UTC_OFFSET_SEC = new Date().getTimezoneOffset() * -60
+/** UTC → «московское» время для отрисовки. */
+const toDisplayTime = (utcSec: number): number => utcSec + LOCAL_UTC_OFFSET_SEC
+/** «Московское» время с оси → обратно в UTC (для данных и синхронизации). */
+const toUtcTime = (displaySec: number): number => displaySec - LOCAL_UTC_OFFSET_SEC
 
 const props = defineProps<{
   /** История записей для конкретного FIGI (до 500). */
@@ -89,7 +110,8 @@ function buildMarkers(items: MarketDataItem[]): NewsMarker[] {
     const time = candleTime(item)
     if (time === null) continue
     out.push({
-      time: time as Time,
+      // маркеры рисуются по «московскому» времени — как и свечи
+      time: toDisplayTime(time) as Time,
       position: 'aboveBar',
       color: GOLD,
       shape: 'circle',
@@ -108,7 +130,10 @@ function applyMarkers() {
 function renderHistory(items: MarketDataItem[]) {
   if (!candleSeries.value) return
   candles.value = toCandles(items)
-  candleSeries.value.setData(candles.value.map((c) => ({ ...c, time: c.time as Time })))
+  // +смещение перед отрисовкой: время по Москве (данные остаются в UTC)
+  candleSeries.value.setData(
+    candles.value.map((c) => ({ ...c, time: toDisplayTime(c.time) as Time })),
+  )
   markers.value = buildMarkers(items)
   applyMarkers()
   if (candles.value.length > 0) {
@@ -131,11 +156,11 @@ function upsert(item: MarketDataItem) {
     close: item.close_price,
   }
   candles.value = upsertByTime(candles.value, point)
-  candleSeries.value.update({ ...point, time: time as Time })
+  candleSeries.value.update({ ...point, time: toDisplayTime(time) as Time })
   if (hasAiSummary(item)) {
     // замена маркера с тем же time (свеча могла обновиться)
     const marker: NewsMarker = {
-      time: time as Time,
+      time: toDisplayTime(time) as Time,
       position: 'aboveBar',
       color: GOLD,
       shape: 'circle',
@@ -143,7 +168,8 @@ function upsert(item: MarketDataItem) {
       newsId: item.id,
     }
     markers.value = [
-      ...markers.value.filter((m) => m.time !== time),
+      // маркеры хранятся в «московском» времени — сравниваем с toDisplayTime(time)
+      ...markers.value.filter((m) => m.time !== toDisplayTime(time)),
       marker,
     ].sort((a, b) => (a.time as number) - (b.time as number))
     applyMarkers()
@@ -178,9 +204,12 @@ function publishWindowFromTimeScale() {
   const to = typeof range.to === 'number' ? range.to : null
   if (from === null || to === null) return
   const drum = sync.drum.value
-  let s = drum.findIndex((t) => t >= from)
+  // time-scale оперирует «московским» временем, барабан — UTC: обратно в UTC
+  const fromUtc = toUtcTime(from)
+  const toUtc = toUtcTime(to)
+  let s = drum.findIndex((t) => t >= fromUtc)
   if (s < 0) s = 0
-  let e = drum.findIndex((t) => t >= to)
+  let e = drum.findIndex((t) => t >= toUtc)
   if (e < 0) e = drum.length
   // Не публикуем «краевые» значения по умолчанию — иначе каждое событие
   // подписки будет бесконечно гонять эхо окно↔time-scale.
@@ -197,7 +226,8 @@ function applyWindowToTimeScale(start: number, end: number) {
   const from = drum[Math.min(start, drum.length - 1)]
   const to = drum[Math.min(Math.max(end - 1, start), drum.length - 1)]
   applyingExternal = true
-  c.timeScale().setVisibleRange({ from: from as Time, to: to as Time })
+  // барабан (UTC) → time-scale («московское» время для отрисовки)
+  c.timeScale().setVisibleRange({ from: toDisplayTime(from) as Time, to: toDisplayTime(to) as Time })
   requestAnimationFrame(() => { applyingExternal = false })
 }
 
@@ -218,7 +248,8 @@ function setOscillatorCrosshair(time: number | null) {
   }
   const candle = candles.value.find((cnd) => cnd.time === time) ?? candles.value[candles.value.length - 1]
   if (!candle) return
-  series.setCrosshairPosition?.(candle.close, candle.time as Time)
+  // время барабана (UTC) → «московское» для установки кроссхэйра на графике
+  series.setCrosshairPosition?.(candle.close, toDisplayTime(candle.time) as Time)
 }
 
 let resizeObserver: ResizeObserver | null = null
@@ -241,7 +272,17 @@ onMounted(() => {
       horzLines: { color: GRID },
     },
     rightPriceScale: { borderColor: LINE },
-    timeScale: { borderColor: LINE, timeVisible: true, secondsVisible: false },
+    timeScale: {
+      borderColor: LINE,
+      timeVisible: true,
+      secondsVisible: false,
+      // Данные в БД хранятся в UTC (нулевой пояс). Перед отрисовкой к
+      // unix-секундам свечей прибавляется смещение локального пояса (+3 ч
+      // для Москвы), поэтому метки тиков показываем как есть — без
+      // повторного сдвига (иначе время «уедет» ещё на +3).
+      tickMarkFormatter: (time: Time) =>
+        formatUtcAsMoscow(typeof time === 'number' ? time : 0),
+    },
     crosshair: { mode: CrosshairMode.Normal },
     handleScroll: { mouseWheel: true, pressedMouseMove: true },
     handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
