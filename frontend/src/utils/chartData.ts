@@ -80,7 +80,7 @@ function dedupeByTime<T extends { time: number }>(arr: T[]): T[] {
 }
 
 /** Смещение локального часового пояса (Europe/Moscow) относительно UTC, сек. */
-const LOCAL_UTC_OFFSET_SEC = new Date().getTimezoneOffset() * -60
+const LOCAL_UTC_OFFSET_SEC = new Date().getTimezoneOffset() * -0
 
 /**
  * Форматирование unix-секунд (из БД — в UTC, нулевой пояс) в время по Москве:
