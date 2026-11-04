@@ -4,6 +4,10 @@
  * золотой маркер графика цены). Содержимое по ТЗ:
  *  - заголовок title, текст content, FIGI инструмента;
  *  - саммари от ИИ ai_text_summary;
+ *  - РАЗВЁРНУТАЯ аналитика из ai_raw_response (JSONB): executive_summary,
+ *    fundamental/technical/macro/behavioral/quantitative/sector анализ,
+ *    synergy_insights, practical_conclusions и queries модели — парсер и
+ *    словари подписей в types/aiAnalysis.ts;
  *  - оценки ИИ в ВИЗУАЛИЗАЦИИ БЕЗ ЦИФР:
  *      Sentiment   — прогресс-бар красный → зелёный;
  *      Relevance   — прогресс-бар серый → золотой;
@@ -12,8 +16,17 @@
  *  - финансовые данные: close_price, depth, volume / volume_buy / volume_sell.
  * Дизайн: светлый фон, золотые акценты, элегантная типографика, без теней.
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { MarketDataItem } from '../types/market'
+import {
+  confidenceBadge,
+  fairValueBadge,
+  overshootBadge,
+  parseAiRawAnalysis,
+  reactionBadge,
+  type AiRawAnalysis,
+  type Badge,
+} from '../types/aiAnalysis'
 
 const props = defineProps<{
   /** Данные новости (полная запись из GET /api/market/news/{id}). */
@@ -93,6 +106,157 @@ const closePrice = computed(() => {
   return Number.isFinite(price) ? `${fmt(price)}${cur}` : '—'
 })
 
+/* ---------------------- Развёрнутая аналитика (ai_raw_response) ------------ */
+
+/** Чистим секцию от незаполненных полей — UI рендерит только непустое. */
+function prune<T extends object>(o: T): T {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(o)) {
+    if (v === undefined || v === null) continue
+    if (Array.isArray(v) && v.length === 0) continue
+    out[k] = v
+  }
+  return out as T
+}
+
+/**
+ * Разбор JSONB ai_raw_response (толерантный: объект или JSON-строка,
+ * историческое написание колонки ai_raw_responce тоже поддерживается).
+ */
+const rawAnalysis = computed<AiRawAnalysis | null>(() => {
+  const it = props.news
+  if (!it) return null
+  const parsed = parseAiRawAnalysis(it.ai_raw_response ?? it.ai_raw_responce ?? null)
+  if (!parsed) return null
+  const cleaned: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(parsed)) {
+    if (v === undefined || v === null) continue
+    if (typeof v === 'object' && !Array.isArray(v)) {
+      const pruned = prune(v as Record<string, unknown>)
+      if (Object.keys(pruned).length > 0) cleaned[k] = pruned
+    } else {
+      cleaned[k] = v
+    }
+  }
+  return Object.keys(cleaned).length > 0 ? (cleaned as AiRawAnalysis) : null
+})
+
+/** Русские заголовки секций raw-ответа (порядок = приоритет чтения). */
+const SECTION_TITLES: Array<{ key: keyof AiRawAnalysis; title: string }> = [
+  { key: 'executive_summary', title: 'Главное' },
+  { key: 'practical_conclusions', title: 'Практические выводы' },
+  { key: 'technical_analysis', title: 'Технический анализ' },
+  { key: 'fundamental_analysis', title: 'Фундаментальный анализ' },
+  { key: 'macro_analysis', title: 'Макроэкономика' },
+  { key: 'behavioral_analysis', title: 'Поведение рынка' },
+  { key: 'quantitative_analysis_and_risks', title: 'Количественная оценка и риски' },
+  { key: 'sector_and_competitive_analysis', title: 'Отрасли и конкуренция' },
+  { key: 'synergy_insights', title: 'Синергия и слепые зоны' },
+]
+
+interface SectionView {
+  title: string
+  paragraphs: Array<{ label: string; text: string }>
+  lists: Array<{ label: string; items: string[] }>
+  badges: Badge[]
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  essence: 'Суть события',
+  key_conclusion: 'Ключевой вывод',
+  macro_indicators_impact: 'Влияние макроиндикаторов',
+  transmission_mechanisms: 'Трансмиссионные механизмы',
+  scenarios: 'Торговые сценарии',
+  key_levels: 'Ключевые уровни',
+  risk_management: 'Риск-менеджмент',
+  volume_analysis: 'Анализ объёмов',
+  usd_rub_specifics: 'Специфика USD/RUB',
+  volatility_regime: 'Режим волатильности',
+  indicators_behavior: 'Поведение индикаторов',
+  intermarket_analysis: 'Межрыночный анализ',
+  price_pattern_impact: 'Влияние ценовых паттернов',
+  operational_checklist: 'Операционный чек-лист',
+  applicable_instruments: 'Применимые инструменты',
+  trading_recommendations: 'Торговые рекомендации',
+  reasoning: 'Логика вывода',
+  financial_impact: 'Финансовое влияние',
+  signal_vs_noise: 'Сигнал vs шум',
+  volatility_impact: 'Влияние на волатильность',
+  correlation_changes: 'Изменения корреляций',
+  competitive_impact: 'Конкурентное влияние',
+  supply_chain_impact: 'Влияние на цепочки поставок',
+}
+
+const LIST_LABELS: Record<string, string> = {
+  applied_frameworks: 'Применённые фреймворки',
+  applied_models: 'Применённые модели',
+  cognitive_biases: 'Когнитивные искажения',
+  affected_entities: 'Затронутые компании',
+  applied_methodologies: 'Методологии оценки',
+  blind_spots: 'Слепые зоны',
+  macro_trend_links: 'Связи с макротрендами',
+  secondary_effects: 'Вторичные эффекты',
+  suggested_additional_data: 'Дополнительные данные',
+  key_takeaways: 'Ключевые тезисы',
+  events_to_watch: 'События под наблюдением',
+  revision_triggers: 'Триггеры пересмотра',
+  key_risks: 'Ключевые риски',
+  losers: 'Пострадавшие',
+  beneficiaries: 'Выгодоприобретатели',
+}
+
+/** Enum-поля выводим бейджами, а не «сырым» текстом. */
+const BADGE_FIELDS = new Set([
+  'confidence_level',
+  'market_reaction_type',
+  'overshooting_probability',
+  'fair_value_assessment',
+])
+
+function collectBadges(src: Record<string, unknown>): Badge[] {
+  const out: Badge[] = []
+  const push = (b: Badge | null): void => { if (b) out.push(b) }
+  push(confidenceBadge(typeof src['confidence_level'] === 'string' ? src['confidence_level'] : undefined))
+  push(reactionBadge(typeof src['market_reaction_type'] === 'string' ? src['market_reaction_type'] : undefined))
+  push(overshootBadge(typeof src['overshooting_probability'] === 'string' ? src['overshooting_probability'] : undefined))
+  push(fairValueBadge(typeof src['fair_value_assessment'] === 'string' ? src['fair_value_assessment'] : undefined))
+  return out
+}
+
+function buildSection(title: string, body: Record<string, unknown>): SectionView {
+  const paragraphs: SectionView['paragraphs'] = []
+  const lists: SectionView['lists'] = []
+  for (const [field, value] of Object.entries(body)) {
+    if (BADGE_FIELDS.has(field)) continue
+    if (typeof value === 'string') {
+      paragraphs.push({ label: FIELD_LABELS[field] ?? field, text: value })
+    } else if (Array.isArray(value)) {
+      lists.push({ label: LIST_LABELS[field] ?? field, items: value.filter((x): x is string => typeof x === 'string') })
+    }
+  }
+  return { title, paragraphs, lists, badges: collectBadges(body) }
+}
+
+const sections = computed<SectionView[]>(() => {
+  const analysis = rawAnalysis.value
+  if (!analysis) return []
+  const out: SectionView[] = []
+  for (const { key, title } of SECTION_TITLES) {
+    const body = analysis[key]
+    if (!body || typeof body !== 'object' || Array.isArray(body)) continue
+    const view = buildSection(title, body as Record<string, unknown>)
+    if (view.paragraphs.length === 0 && view.lists.length === 0 && view.badges.length === 0) continue
+    out.push(view)
+  }
+  return out
+})
+
+/** Ключевые запросы модели (queries) — компактный список над блоками анализа. */
+const queries = computed<string[]>(() => rawAnalysis.value?.queries ?? [])
+
+/** Сворачивание развёрнутого анализа (в модалке по умолчанию свёрнут). */
+const rawOpen = ref(false)
+
 function onOverlayClick(ev: MouseEvent) {
   // Закрытие только по клику на затемнённый оверлей, не на карточку
   if (ev.target === ev.currentTarget) emit('close')
@@ -125,6 +289,52 @@ function onOverlayClick(ev: MouseEvent) {
         <section v-if="news.ai_text_summary" class="section ai-summary">
           <h3 class="section-title gold">Саммари от ИИ</h3>
           <p class="summary-text">{{ news.ai_text_summary }}</p>
+        </section>
+
+        <!-- Развёрнутая структура из ai_raw_response (JSONB) -->
+        <section v-if="sections.length > 0 || queries.length > 0" class="section raw-analysis">
+          <button
+            type="button"
+            class="raw-toggle"
+            :aria-expanded="rawOpen"
+            @click="rawOpen = !rawOpen"
+          >
+            <span class="raw-toggle-title">Развёрнутый анализ ИИ</span>
+            <span class="raw-toggle-hint">{{ rawOpen ? 'Свернуть' : `Показать (${sections.length} блоков)` }}</span>
+          </button>
+
+          <div v-show="rawOpen" class="raw-body">
+            <ul v-if="queries.length > 0" class="queries">
+              <li v-for="(q, i) in queries" :key="i" class="query">{{ q }}</li>
+            </ul>
+
+            <article v-for="(sec, i) in sections" :key="i" class="raw-section">
+              <h4 class="raw-section-title">{{ sec.title }}</h4>
+
+              <div v-if="sec.badges.length > 0" class="badges">
+                <span
+                  v-for="(b, j) in sec.badges"
+                  :key="j"
+                  class="badge"
+                  :class="`badge--${b.tone}`"
+                >{{ b.label }}</span>
+              </div>
+
+              <dl v-if="sec.paragraphs.length > 0" class="fields">
+                <template v-for="(p, k) in sec.paragraphs" :key="k">
+                  <dt class="field-label">{{ p.label }}</dt>
+                  <dd class="field-value">{{ p.text }}</dd>
+                </template>
+              </dl>
+
+              <div v-for="(list, m) in sec.lists" :key="`l-${m}`" class="list-block">
+                <span class="field-label">{{ list.label }}</span>
+                <ul class="chips">
+                  <li v-for="(item, n) in list.items" :key="n" class="chip">{{ item }}</li>
+                </ul>
+              </div>
+            </article>
+          </div>
         </section>
 
         <!-- Оценки ИИ: визуализация БЕЗ ЦИФР -->
@@ -353,6 +563,158 @@ function onOverlayClick(ev: MouseEvent) {
   font-size: var(--fs-micro);
   font-weight: var(--fw-light);
   color: var(--color-ink-soft);
+}
+
+/* ---------- Блок «Развёрнутый анализ ИИ» (ai_raw_response) ---------- */
+.raw-analysis {
+  border-top: 1px solid var(--color-platinum);
+  padding-top: var(--space-sm);
+}
+
+.raw-toggle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.raw-toggle-title {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-ultra);
+  text-transform: uppercase;
+  color: var(--color-gold);
+}
+
+.raw-toggle-hint {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  color: var(--color-grey-light);
+}
+
+.raw-body {
+  margin-top: var(--space-sm);
+}
+
+.queries {
+  list-style: none;
+  margin: 0 0 var(--space-md);
+  padding: var(--space-xs) var(--space-sm);
+  border-left: 2px solid var(--color-platinum);
+  background: var(--color-platinum-soft);
+}
+
+.query {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  line-height: var(--lh-normal);
+  color: var(--color-grey);
+  padding: 2px 0;
+}
+
+.raw-section {
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-platinum-soft);
+}
+
+.raw-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.raw-section-title {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
+  letter-spacing: var(--ls-tight);
+  color: var(--color-ink);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xs);
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-platinum);
+}
+
+.badge--gold {
+  color: var(--color-bg-elevated);
+  background: var(--color-gold);
+  border-color: var(--color-gold);
+}
+
+.badge--neutral {
+  color: var(--color-ink);
+  background: var(--color-platinum-soft);
+}
+
+.badge--dark {
+  color: var(--color-bg-elevated);
+  background: var(--color-ink);
+  border-color: var(--color-ink);
+}
+
+.fields {
+  margin: 0;
+}
+
+.field-label {
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-wide);
+  text-transform: uppercase;
+  color: var(--color-grey-light);
+  margin-top: var(--space-xs);
+}
+
+.field-value {
+  margin: 2px 0 0;
+  font-size: var(--fs-small);
+  font-weight: var(--fw-light);
+  line-height: var(--lh-normal);
+  color: var(--color-ink-soft);
+}
+
+.list-block {
+  margin-top: var(--space-sm);
+}
+
+.chips {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin: var(--space-xs) 0 0;
+  padding: 0;
+}
+
+.chip {
+  padding: 3px 10px;
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-light);
+  color: var(--color-ink-soft);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-platinum);
+  border-radius: var(--radius-sm);
 }
 
 /* Финансовые данные */
