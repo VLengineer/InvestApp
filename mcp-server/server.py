@@ -23,7 +23,13 @@ import subprocess
 import docker
 from mcp.server.fastmcp import FastMCP
 
-mcp = FastMCP("Project Coder MCP Server")
+# host/port передаём через конструктор (settings): в разных версиях библиотеки
+# mcp сигнатура mcp.run() отличается (run(transport=...) без host/port),
+# а FastMCP(name, host=..., port=...) поддерживается всеми версиями 1.x.
+MCP_HOST = "0.0.0.0"
+MCP_PORT = int(os.environ.get("PORT", "9000"))
+
+mcp = FastMCP("Project Coder MCP Server", host=MCP_HOST, port=MCP_PORT)
 
 # Директория проекта, примонтированная в контейнер mcp-server (см. docker-compose.yml)
 WORKSPACE = os.environ.get("MCP_WORKSPACE", "/workspace")
@@ -32,7 +38,27 @@ WORKSPACE = os.environ.get("MCP_WORKSPACE", "/workspace")
 # (compose передаёт DOCKER_HOST), при локальном запуске — стандартный socket.
 DOCKER_HOST = os.environ.get("DOCKER_HOST") or "unix:///var/run/docker.sock"
 
-client = docker.DockerClient(base_url=DOCKER_HOST)
+_docker_client = None
+_docker_error = None
+
+
+def get_docker():
+    """Ленивый доступ к Docker: отсутствие docker.sock не должно валить сервер,
+    файловые инструменты и run_local_command работают и без Docker."""
+    global _docker_client, _docker_error
+    if _docker_client is not None:
+        return _docker_client
+    if _docker_error is not None:
+        raise RuntimeError(
+            f"Docker недоступен ({_docker_error}). Инструменты exec_command/"
+            "list_services требуют смонтированный /var/run/docker.sock."
+        )
+    try:
+        _docker_client = docker.DockerClient(base_url=DOCKER_HOST)
+    except Exception as e:  # DockerException и прочее
+        _docker_error = str(e)
+        raise RuntimeError(_docker_error)
+    return _docker_client
 
 # Сервисы проекта: имя сервиса в compose -> имя контейнера и workdir внутри него
 SERVICES = {
@@ -87,12 +113,12 @@ def get_container(service_name: str):
     if service_name in SERVICES:
         name = SERVICES[service_name]["container"]
         try:
-            c = client.containers.get(name)
+            c = get_docker().containers.get(name)
             if c.status == "running":
                 return c
         except docker.errors.NotFound:
             pass
-    for c in client.containers.list():
+    for c in get_docker().containers.list():
         if service_name in c.name:
             return c
     return None
@@ -242,9 +268,12 @@ def list_services() -> str:
         for name, info in SERVICES.items()
     )
     rows = []
-    for c in client.containers.list():
-        img = c.image.tags[0] if c.image.tags else c.image.short_id
-        rows.append(f"  {c.name}\t{c.status}\t{img}")
+    try:
+        for c in get_docker().containers.list():
+            img = c.image.tags[0] if c.image.tags else c.image.short_id
+            rows.append(f"  {c.name}\t{c.status}\t{img}")
+    except Exception as e:
+        return f"Docker недоступен: {e}"
     return (
         "Known services (for exec_command):\n" + known
         + "\n\nRunning containers:\n" + ("\n".join(rows) or "  (none)")
@@ -269,7 +298,10 @@ def exec_command(service: str, command: str) -> str:
     if err:
         return err
 
-    container = get_container(service)
+    try:
+        container = get_container(service)
+    except Exception as e:
+        return f"Docker недоступен: {e}"
     if not container:
         return (
             f"ERROR: running container for service '{service}' not found. "
@@ -312,4 +344,5 @@ def run_local_command(command: str, timeout: int = 60) -> str:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="sse", host="0.0.0.0", port=int(os.environ.get("PORT", "9000")))
+    # host/port уже заданы в конструкторе FastMCP (settings) — см. начало файла.
+    mcp.run(transport="sse")

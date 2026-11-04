@@ -230,7 +230,7 @@ onMounted(() => {
   syncPaletteFromTokens()
   const c = createChart(el, {
     width: el.clientWidth,
-    height: 420,
+    height: el.clientHeight || 420,
     layout: {
       background: { type: ColorType.Solid, color: BG },
       textColor: TEXT_SECONDARY,
@@ -275,9 +275,11 @@ onMounted(() => {
   // Отдаём общий барабан наружу (Dashboard → OscillatorCharts)
   emit('sync-ready', sync)
 
-  // Ресайз без лишних анимаций — только пересчёт размеров
+  // Ресайз без лишних анимаций — пересчёт размеров по контейнеру
+  // (высота теперь гибкая: карточка растягивается на секцию Dashboard).
   resizeObserver = new ResizeObserver(() => {
-    if (containerEl.value) c.applyOptions({ width: containerEl.value.clientWidth })
+    const host = containerEl.value
+    if (host) c.applyOptions({ width: host.clientWidth, height: host.clientHeight || 420 })
   })
   resizeObserver.observe(el)
 
@@ -313,12 +315,18 @@ watch(
 
 <style scoped>
 /* Flat-карточка Modern Platinum: тонкая платиновая рамка, радиус 2px,
-   без тени в покое. Только токены из tokens.css. */
+   без тени в покое. Только токены из tokens.css.
+   Растягиваемся на всю высоту секции: chart-body занимает остаток места,
+   поэтому график не «вылезает» за карточку и не накладывается на соседние. */
 .card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   padding: var(--space-md);
 }
 
 .chart-head {
+  flex: none;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -341,12 +349,15 @@ watch(
 }
 
 .chart-body {
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
 }
 
 @media (max-width: 1023px) {
   .chart-head {
     flex-direction: column;
+    align-items: flex-start;
     gap: var(--space-xs);
   }
 }

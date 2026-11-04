@@ -101,27 +101,34 @@ const { connected, subscribe } = useWebSocket(onNewData)
 
 /* ------------------- Логика смены FIGI ------------------- */
 
-async function loadHistory(figi: string) {
+/** FIGI, для которого история уже загружена (защита от повторной загрузки в watch). */
+let loadedFigi = ''
+
+/** Загрузка истории по FIGI. Возвращает false при ошибке (например, 404). */
+async function loadHistory(figi: string): Promise<boolean> {
   loadingHistory.value = true
   error.value = ''
   try {
     const res = await fetchInitialData(figi)
     history.value = res.data
+    loadedFigi = figi
+    return true
   } catch (e) {
     error.value = `Не удалось загрузить данные: ${e instanceof Error ? e.message : String(e)}`
     history.value = []
+    return false
   } finally {
     loadingHistory.value = false
   }
 }
 
 /**
- * Смена FIGI через селектор. Первичный FIGI грузится в initDashboard()
- * (watch не вызывается на инициальное значение), поэтому здесь guard
- * `figi === prev` защищает от двойной загрузки только при явных повторах.
+ * Смена FIGI через селектор. Если история уже загружена для этого FIGI
+ * (initDashboard выставил selectedFigi после успешной загрузки), watch
+ * ничего не делает — это исключает двойную загрузку.
  */
-watch(selectedFigi, async (figi, prev) => {
-  if (!figi || figi === prev) return
+watch(selectedFigi, async (figi) => {
+  if (!figi || figi === loadedFigi) return
   // 1. История по REST (последние 500)
   await loadHistory(figi)
   // 2. Переподписка WebSocket (сервер сам отпишет от предыдущего FIGI)
@@ -174,18 +181,22 @@ async function initDashboard(): Promise<void> {
     /* noop */
   }
   const candidates = [fromUrl, stored, ...figis.value]
-  const initial = candidates.find(
-    (f) => f && figis.value.includes(f) && !brokenFigis.value.has(f),
-  )
-  if (!initial) return
-  selectedFigi.value = initial
-
-  // Явная первичная загрузка + подписка WS.
-  // Watch на selectedFigi срабатывает только при ИЗМЕНЕНИИ значения, поэтому
-  // стартовый FIGI грузим здесь — иначе страница рендерилась бы пустой.
-  await loadHistory(initial)
-  subscribe(initial)
-  persistFigi(initial)
+  // Перебираем кандидатов: FIGI, по которому история не загрузилась, помечаем
+  // как broken и переходим к следующему — без зацикливания.
+  for (const f of candidates) {
+    if (!f || !figis.value.includes(f) || brokenFigis.value.has(f)) continue
+    // Загружаем историю явно; selectedFigi выставляем только после успеха,
+    // чтобы watch увидел loadedFigi === f и не дублировал запрос.
+    const ok = await loadHistory(f)
+    if (!ok) {
+      brokenFigis.value = new Set(brokenFigis.value).add(f)
+      continue
+    }
+    selectedFigi.value = f
+    subscribe(f)
+    persistFigi(f)
+    return
+  }
 }
 
 /** Сохранение выбранного FIGI в URL (?figi=) и localStorage (шаринг ссылки). */
@@ -227,27 +238,35 @@ onMounted(() => initDashboard())
 
     <template v-if="selectedFigi">
       <!-- График цены с маркерами новостей -->
-      <PriceChart
-        ref="priceChartRef"
-        :data="visibleHistory"
-        class="reveal"
-        @marker-click="openNewsModal"
-        @sync-ready="chartSync = $event"
-      />
+      <section class="chart-section chart-section--price reveal">
+        <PriceChart
+          ref="priceChartRef"
+          :data="visibleHistory"
+          @marker-click="openNewsModal"
+          @sync-ready="chartSync = $event"
+        />
+      </section>
 
       <!-- Аналитика ИИ (последняя запись с саммари) -->
-      <AICard :data="visibleHistory" class="reveal" />
+      <section class="ai-section reveal">
+        <AICard :data="visibleHistory" />
+      </section>
 
-      <!-- Осцилляторы: общий барабан времени + кроссхэйр-синхронизация со свечами -->
-      <OscillatorCharts
-        :data="visibleHistory"
-        :sync="chartSync"
-        class="reveal"
-        @crosshair-time="priceChartRef?.setOscillatorCrosshair($event)"
-      />
+      <!-- Осцилляторы: общий барабан времени + кроссхэйр-синхронизация со свечами.
+           Высота определяется содержимым (сетка 3×3 мини-графиков), overflow:auto
+           позволяет скроллить если экран маленький. -->
+      <section class="oscillators-section reveal">
+        <OscillatorCharts
+          :data="visibleHistory"
+          :sync="chartSync"
+          @crosshair-time="priceChartRef?.setOscillatorCrosshair($event)"
+        />
+      </section>
 
       <!-- Объёмы и стакан -->
-      <VolumeOrderbook :data="visibleHistory" class="reveal" />
+      <section class="chart-section chart-section--volume reveal">
+        <VolumeOrderbook :data="visibleHistory" />
+      </section>
     </template>
 
     <p v-else-if="!figisLoading && figis.length === 0" class="empty">
@@ -365,6 +384,44 @@ onMounted(() => initDashboard())
   color: var(--color-grey);
 }
 
+/* === Секции графиков ===
+   Для price и volume используем overflow:hidden с фиксированной высотой —
+   графики заполняют контейнер полностью.
+   Для oscillators — отдельный класс без overflow:hidden, высота auto,
+   чтобы компонент сам определял размер и мог скроллиться при необходимости. */
+.chart-section {
+  isolation: isolate;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.chart-section--price {
+  height: 500px;
+}
+
+.chart-section--volume {
+  height: 500px;
+}
+
+/* Осцилляторы: высота определяется содержимым (сетка 3×3 мини-графиков).
+   На маленьких экранах секция может скроллиться вертикально. */
+.oscillators-section {
+  isolation: isolate;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.ai-section {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-md);
+}
+
 /* ---------- Адаптив ---------- */
 @media (max-width: 1023px) {
   .dashboard {
@@ -378,6 +435,16 @@ onMounted(() => initDashboard())
 
   .status {
     margin-left: 0;
+  }
+
+  .chart-section--price {
+    height: 400px;
+  }
+
+  /* На мобильных карточки «объёмы | стакан» складываются в одну колонку —
+     фиксированная высота обрезала бы стакан, поэтому высота по содержимому. */
+  .chart-section--volume {
+    height: auto;
   }
 }
 </style>

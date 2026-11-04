@@ -315,8 +315,7 @@ function updateDrum(items: MarketDataItem[]) {
   sync.setDrum(times)
 }
 
-function bindInteractions(el: HTMLElement, inst: ReturnType<typeof echarts.init>) {
-  const offWheel = attachWheelZoomScroll(el, activeSync())
+function bindCrosshair(el: HTMLElement, inst: ReturnType<typeof echarts.init>) {
   const onMouseEvent = (payload: { dataIndex?: number; axesInfo?: unknown[] }) => {
     const hasPoint = (payload.axesInfo?.length ?? 0) > 0 || payload.dataIndex !== undefined
     if (!hasPoint) {
@@ -330,7 +329,6 @@ function bindInteractions(el: HTMLElement, inst: ReturnType<typeof echarts.init>
   }
   inst.on('updateAxisPointer', onMouseEvent as never)
   cleanups.push(() => inst.off('updateAxisPointer', onMouseEvent as never))
-  cleanups.push(offWheel)
 }
 
 function renderAll(items: MarketDataItem[]) {
@@ -383,8 +381,15 @@ onMounted(() => {
     const inst = echarts.init(el, undefined, { renderer: 'canvas' })
     instances.set(def.key, inst)
     hub.register(inst)
-    bindInteractions(el, inst)
+    bindCrosshair(el, inst)
   }
+  
+  // Жесты зума/панорамы — на всю сетку графиков (а не на отдельные mini-chart):
+  // так колесо и drag работают в любом месте блока осцилляторов, включая
+  // отступы между графиками, и не мешают прокрутке страницы над шапкой.
+  const offWheel = attachWheelZoomScroll(wrap, activeSync())
+  cleanups.push(offWheel)
+
   renderAll(props.data)
 
   // Отслеживаем размеры контейнеров графиков (сетка, fullscreen, адаптив) —
@@ -502,6 +507,14 @@ watch(
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-sm);
+  /* Горизонтальный drag — панорама графика, вертикальный — прокрутка страницы */
+  touch-action: pan-y;
+  cursor: grab;
+}
+
+.grid.is-dragging {
+  cursor: grabbing;
+  user-select: none;
 }
 
 .cell {

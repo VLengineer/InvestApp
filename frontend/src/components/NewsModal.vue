@@ -181,7 +181,8 @@ function onOverlayClick(ev: MouseEvent) {
 .overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  /* Тоже поверх стековых контекстов секций; модалка выше дропдаунов. */
+  z-index: var(--z-overlay);
   background: var(--color-overlay);
   display: flex;
   align-items: center;

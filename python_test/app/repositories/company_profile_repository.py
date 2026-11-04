@@ -110,18 +110,57 @@ class CompanyProfileRepository:
             row = await conn.fetchrow("SELECT * FROM company_profiles WHERE figi = $1", figi)
         return dict(row) if row else None
 
-    async def search_by_vector(self, vector_pg: str, limit: int = 5) -> list[dict[str, Any]]:
-        """Косинусный поиск по эмбеддингу профиля (pgvector ``<=>``)."""
+    async def search_by_vector(
+        self,
+        vector_pg: str,
+        limit: int = 5,
+        *,
+        min_similarity: float | None = None,
+        recall_depth: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Косинусный поиск по эмбеддингу профиля (pgvector ``<=>``).
+
+        ``similarity`` — «сырое» косинусное сходство ``1 - distance``. У used
+        эмбеддинг-модели (embeddinggemma) вектора сильного анизотропны:
+        mean pairwise сходство профилей ~0.83, поэтому даже нерелевантный
+        («мусорный») запрос даёт similarity ~0.65. Порог по сырому значению
+        бессмысленен — он либо отсекает всё, либо ничего.
+
+        Поэтому дополнительно считается ``rel_similarity`` — нормализованное
+        «относительное» сходство относительно шумового пола данного запроса::
+
+            rel = (similarity - avg_similarity) / (1 - avg_similarity)
+
+        ``avg_similarity`` берётся по top-``recall_depth`` кандидатам (это и
+        есть «пол» нерелевантности для конкретного запроса; самонастраивается
+        при росте корпуса). Мусорный запрос даёт rel ~0.03–0.08, осмысленный —
+        0.12–0.30. ``min_similarity`` фильтрует по rel_similarity; ``None`` —
+        не фильтровать (прежнее поведение, просто top-``limit``).
+        """
         async with self._database.pool.acquire() as conn:
             rows = await conn.fetch(
                 """
-                SELECT company_name, ticker, figi, description, business_model, news_triggers,
-                       1 - (embedding <=> $1::vector) AS similarity
-                FROM company_profiles
-                ORDER BY embedding <=> $1::vector
-                LIMIT $2
+                WITH cand AS (
+                    SELECT company_name, ticker, figi, description, business_model, news_triggers,
+                           1 - (embedding <=> $1::vector) AS similarity
+                    FROM company_profiles
+                    ORDER BY embedding <=> $1::vector
+                    LIMIT $2
+                ), agg AS (
+                    SELECT AVG(similarity) AS mean_sim FROM cand
+                )
+                SELECT c.company_name, c.ticker, c.figi, c.description, c.business_model, c.news_triggers,
+                       c.similarity,
+                       (c.similarity - a.mean_sim) / GREATEST(1 - a.mean_sim, 1e-6) AS rel_similarity
+                FROM cand c, agg a
+                WHERE $3::float IS NULL
+                   OR (c.similarity - a.mean_sim) / GREATEST(1 - a.mean_sim, 1e-6) >= $3
+                ORDER BY c.similarity DESC
+                LIMIT $4
                 """,
                 vector_pg,
+                max(recall_depth, limit),
+                min_similarity,
                 limit,
             )
         return [dict(r) for r in rows]

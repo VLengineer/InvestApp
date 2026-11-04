@@ -205,7 +205,13 @@ export function attachWheelZoomScroll(
 ): () => void {
   const PX_PER_CANDLE = 8
 
+  /** Интерактивные элементы внутри контейнера не должны перехватываться жестами. */
+  const isInteractive = (target: EventTarget | null): boolean =>
+    target instanceof Element &&
+    target.closest('button, a, input, select, textarea, [data-no-zoom]') !== null
+
   const onWheel = (ev: WheelEvent) => {
+    if (isInteractive(ev.target)) return
     ev.preventDefault()
     const rect = el.getBoundingClientRect()
     const anchorRatio = (ev.clientX - rect.left) / Math.max(1, rect.width)
@@ -216,13 +222,14 @@ export function attachWheelZoomScroll(
 
   let dragging = false
   let lastX = 0
-  let moved = 0
+  let carry = 0 // недособранные доли свечи между событиями pointermove
 
   const onPointerDown = (ev: PointerEvent) => {
     if (ev.button !== 0) return
+    if (isInteractive(ev.target)) return
     dragging = true
     lastX = ev.clientX
-    moved = 0
+    carry = 0
     el.setPointerCapture?.(ev.pointerId)
     el.classList.add('is-dragging')
   }
@@ -231,10 +238,10 @@ export function attachWheelZoomScroll(
     if (!dragging) return
     const dx = ev.clientX - lastX
     lastX = ev.clientX
-    moved += Math.abs(dx)
-    const candles = dx / PX_PER_CANDLE
-    // целочисленные шаги pan, остаток накапливаем
+    // накопление остатка: медленный drag <8px тоже двигает окно
+    const candles = dx / PX_PER_CANDLE + carry
     const whole = Math.trunc(candles)
+    carry = candles - whole
     if (whole !== 0) {
       ;(sync as ChartSync).pan(-whole)
     }

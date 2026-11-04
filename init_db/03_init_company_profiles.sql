@@ -1,6 +1,3 @@
--- 03_init_company_profiles.sql
--- Инициализация таблицы company_profiles (PostgreSQL + pgvector)
-
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS company_profiles (

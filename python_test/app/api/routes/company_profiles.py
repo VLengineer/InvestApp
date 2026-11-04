@@ -48,6 +48,7 @@ class IngestResponse(BaseModel):
 class SearchRequest(BaseModel):
     query: str = Field(..., description="Текст-запрос для эмбеддинга")
     limit: int = Field(5, ge=1, le=50)
+    min_similarity: float = Field()
 
 
 @router.post(
@@ -114,7 +115,7 @@ async def search(
     _principal: Annotated[Principal, Depends(require_scope(Scope.READ))],
 ) -> list[dict[str, Any]]:
     try:
-        return await service.search_similar(req.query, req.limit)
+        return await service.search_similar(req.query, req.limit, req.min_similarity)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Search failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

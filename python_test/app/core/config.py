@@ -128,6 +128,18 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://ollama:11435/"
     embedding_model: str = "nomic-embed-text"
     embedding_dim: int = 768
+
+    # ------------------------- Поиск по профилям компаний --------------------
+    # Порог ОТНОСИТЕЛЬНОГО сходства (rel_similarity) для /company-profiles/search.
+    # Сырое косинусное сходство непригодно для фильтрации: модель эмбеддингов
+    # анизотропна, любой нерелевантный запрос («null», «asdf») получает ~0.65.
+    # rel = (similarity - avg(top-K)) / (1 - avg(top-K)) — мусор даёт 0.03–0.08,
+    # осмысленный запрос 0.12–0.30. Калибровка на корпусе 16 профилей: мусор
+    # максимум 0.083, потому 0.10 — разумное значение по умолчанию.
+    # 0 = отключить фильтрацию (вернётся top-limit regardless, прежнее поведение).
+    cp_search_min_rel_similarity: float = Field(default=0.10, ge=0.0, le=1.0)
+    # Сколько кандидатов читать из БД для оценки «шумового пола» (avg similarity).
+    cp_search_recall_depth: int = Field(default=20, ge=5, le=200)
     request_timeout_s: float = 120.0
     max_retries: int = 4
     retry_backoff_base_s: float = 0.5

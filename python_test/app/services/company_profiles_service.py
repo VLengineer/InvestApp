@@ -270,10 +270,31 @@ class CompanyProfilesService:
     async def get_profile(self, figi: str) -> dict[str, Any] | None:
         return await self._repository.get_by_figi(figi)
 
-    async def search_similar(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
-        """Косинусный поиск по эмбеддингу профиля (для эндпоинта /company-profiles/search)."""
+    async def search_similar(
+        self,
+        query: str,
+        limit: int = 5,
+        min_rel_similarity: float | None = None,
+    ) -> list[dict[str, Any]]:
+        """Косинусный поиск по эмбеддингу профиля (для эндпоинта /company-profiles/search).
+
+        Порог задаётся по ОТНОСИТЕЛЬНОМУ сходству (см. репозиторий): нерелевантный
+        запрос («null», набор клавиш и т.п.) вернёт пустой список, а не первую
+        попавшуюся компанию с косинусом 0.65. ``min_rel_similarity=None`` — взять
+        значение из настроек (env ``CP_SEARCH_MIN_REL_SIMILARITY``).
+        """
+        query = (query or "").strip()
+        if not query:
+            return []
+
         embedding = await self._embedder.embed(f"search: {query}")
-        return await self._repository.search_by_vector(vector_to_pg(embedding), limit)
+
+        return await self._repository.search_by_vector(
+            vector_to_pg(embedding),
+            limit,
+            min_similarity=min_rel_similarity or None,
+            recall_depth=self._settings.cp_search_recall_depth,
+        )
 
 
 # Путь к cp.json по умолчанию (папка микросервиса python_test/company_profiles/).

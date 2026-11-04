@@ -128,6 +128,7 @@ function fmt(n: number): string {
  * during main process".
  */
 let volRaf = 0
+let volResizeObserver: ResizeObserver | null = null
 
 function scheduleVolResize() {
   if (volRaf) return
@@ -145,12 +146,18 @@ onMounted(() => {
     volChart = echarts.init(volEl.value, undefined, { renderer: 'canvas' })
     renderVolumes(props.data)
     window.addEventListener('resize', scheduleVolResize)
+    // ResizeObserver: карточка меняет высоту вместе с grid-строкой Dashboard
+    // (и при переносе в одну колонку), а не только при resize окна.
+    volResizeObserver = new ResizeObserver(scheduleVolResize)
+    volResizeObserver.observe(volEl.value)
   }
 })
 
 onBeforeUnmount(() => {
   if (volRaf) cancelAnimationFrame(volRaf)
   volRaf = 0
+  volResizeObserver?.disconnect()
+  volResizeObserver = null
   window.removeEventListener('resize', scheduleVolResize)
   volChart?.dispose()
   volChart = null
@@ -202,15 +209,27 @@ watch(() => props.data, (items) => renderVolumes(items))
 </template>
 
 <style scoped>
-/* Двухколоночная сетка карточек (объёмы | стакан). Flat, только токены. */
+/* Двухколоночная сетка карточек (объёмы | стакан). Flat, только токены.
+   height:100% — карточки растягиваются на всю высоту секции Dashboard
+   (500px), график объёмов занимает остаток через flex. */
 .volumes-row {
   display: grid;
   grid-template-columns: 3fr 2fr;
   gap: var(--space-sm);
+  height: 100%;
 }
 
 .card {
   padding: var(--space-md);
+}
+
+/* Карточки растягиваются на всю высоту grid-строки, график объёмов
+   занимает остальное место — height не «прыгает» и canvas корректно
+   пересчитывается через ResizeObserver. */
+.volumes-row > .card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .block-title {
@@ -233,7 +252,8 @@ watch(() => props.data, (items) => renderVolumes(items))
 
 .vol-chart {
   width: 100%;
-  height: 180px;
+  flex: 1;
+  min-height: 180px;
 }
 
 .book-empty {
