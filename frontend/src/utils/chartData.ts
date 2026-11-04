@@ -79,8 +79,14 @@ function dedupeByTime<T extends { time: number }>(arr: T[]): T[] {
   return [...map.values()].sort((a, b) => a.time - b.time)
 }
 
-/** Смещение локального часового пояса (Europe/Moscow) относительно UTC, сек. */
-const LOCAL_UTC_OFFSET_SEC = new Date().getTimezoneOffset() * -60
+/**
+ * Смещение локального часового пояса (Europe/Moscow) относительно UTC, сек.
+ * Ручная коррекция: если время на графиках нужно сдвинуть, поменяйте
+ * MANUAL_TZ_SHIFT_HOURS ниже (например, 3 → +3 ч к UTC; 0 → без сдвига).
+ */
+const MANUAL_TZ_SHIFT_HOURS = 3
+export const LOCAL_UTC_OFFSET_SEC = MANUAL_TZ_SHIFT_HOURS * 3600
+// Авто-вариант (зависит от пояса браузера): new Date().getTimezoneOffset() * -60
 
 /**
  * Форматирование unix-секунд (из БД — в UTC, нулевой пояс) в время по Москве:

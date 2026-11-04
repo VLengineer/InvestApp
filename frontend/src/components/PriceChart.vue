@@ -29,6 +29,7 @@ import {
   candleTime,
   formatUtcAsMoscow,
   hasAiSummary,
+  LOCAL_UTC_OFFSET_SEC,
   toCandles,
   upsertByTime,
   type CandlePoint,
@@ -43,7 +44,7 @@ import { useChartSync, type ChartSync } from '../composables/useChartSync'
  * поиске свечи/маркера по «смещённому» времени из time-scale. Остальные
  * графики (ECharts, category axis + локальные метки) корректны без правок.
  */
-const LOCAL_UTC_OFFSET_SEC = new Date().getTimezoneOffset() * -60
+// Единая точка ручной коррекции пояса: LOCAL_UTC_OFFSET_SEC (utils/chartData.ts)
 /** UTC → «московское» время для отрисовки. */
 const toDisplayTime = (utcSec: number): number => utcSec + LOCAL_UTC_OFFSET_SEC
 /** «Московское» время с оси → обратно в UTC (для данных и синхронизации). */
