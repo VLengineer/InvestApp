@@ -21,10 +21,10 @@ import OscillatorCharts from '../components/OscillatorCharts.vue'
 import VolumeOrderbook from '../components/VolumeOrderbook.vue'
 import AICard from '../components/AICard.vue'
 import NewsModal from '../components/NewsModal.vue'
-import { fetchFigis, fetchInitialData, fetchNewsById } from '../api/market'
+import { fetchCompanies, fetchInitialData, fetchNewsById } from '../api/market'
 import { useWebSocket } from '../composables/useWebSocket'
 import { useRevealOnScroll } from '../composables/useRevealOnScroll'
-import type { MarketDataItem } from '../types/market'
+import type { CompanyFigiItem, MarketDataItem } from '../types/market'
 import type { ChartSync } from '../composables/useChartSync'
 
 const route = useRoute()
@@ -36,7 +36,7 @@ const LS_KEY = 'dashboard.figi'
 
 /* ------------------- Состояние ------------------- */
 
-const figis = ref<string[]>([])
+const figis = ref<CompanyFigiItem[]>([])
 const figisLoading = ref(true)
 const selectedFigi = ref('')
 const history = shallowRef<MarketDataItem[]>([])
@@ -163,7 +163,7 @@ const brokenFigis = ref<Set<string>>(new Set())
 
 async function initDashboard(): Promise<void> {
   try {
-    figis.value = await fetchFigis()
+    figis.value = await fetchCompanies()
   } catch (e) {
     error.value = `Не удалось получить список FIGI: ${e instanceof Error ? e.message : String(e)}`
     figisLoading.value = false
@@ -180,11 +180,12 @@ async function initDashboard(): Promise<void> {
   } catch {
     /* noop */
   }
-  const candidates = [fromUrl, stored, ...figis.value]
+  const allFigis = figis.value.map(c => c.figi)
+  const candidates = [fromUrl, stored, ...allFigis]
   // Перебираем кандидатов: FIGI, по которому история не загрузилась, помечаем
   // как broken и переходим к следующему — без зацикливания.
   for (const f of candidates) {
-    if (!f || !figis.value.includes(f) || brokenFigis.value.has(f)) continue
+    if (!f || !allFigis.includes(f) || brokenFigis.value.has(f)) continue
     // Загружаем историю явно; selectedFigi выставляем только после успеха,
     // чтобы watch увидел loadedFigi === f и не дублировал запрос.
     const ok = await loadHistory(f)

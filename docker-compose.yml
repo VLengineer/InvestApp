@@ -73,7 +73,9 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - app_net
+      app_net:
+        aliases:
+          -  n8n
 
   python_test:
     build:
@@ -85,8 +87,6 @@ services:
       - "${RAG_BIND_IP:-127.0.0.1}:${RAG_PORT:-8100}:8100"
     env_file:
       - ./python_test/.env
-    # код и база знаний уже в образе (Dockerfile) — отдельные volumes/command не нужны,
-    # иначе пустой volume перекроет /app и контейнер не стартует
     command: uvicorn app.main:app --host 0.0.0.0 --port 8100 --reload
     depends_on:
       postgres:
@@ -124,8 +124,6 @@ services:
     networks:
       - app_net
 
-  # BFF финансового дашборда (frontend → FastAPI → PostgreSQL):
-  # REST /api/market/* + WebSocket /ws/market-updates, порт 8300 в сети app_net.
   backend-frontend:
     build:
       context: ./backend-frontend
@@ -160,33 +158,6 @@ services:
     networks:
       - app_net
 
-  mcp-server:
-    build: ./mcp-server
-    container_name: project_mcp
-    restart: unless-stopped
-    ports:
-      - "${MCP_BIND_IP:-127.0.0.1}:${MCP_PORT:-9000}:9000"
-    volumes:
-      # 1. Монтируем весь проект для чтения и записи файлов
-      # (bind-mount: изменения агента сразу видны на хосте и в dev-контейнерах)
-      - ./:/workspace
-      # 2. Монтируем docker.sock для exec_command внутри сервисов.
-      # ВАЖНО: путь берём с хоста — на Docker Desktop / macOS это НЕ /var/run/docker.sock
-      - ${DOCKER_SOCKET_PATH:-/var/run/docker.sock}:/var/run/docker.sock
-    environment:
-      - PYTHONUNBUFFERED=1
-      - MCP_WORKSPACE=/workspace
-      - DOCKER_HOST=unix:///var/run/docker.sock
-    # Важно: MCP должен запускаться после того, как поднимутся backend и frontend,
-    # иначе docker.exec может не найти контейнеры при первом вызове
-    depends_on:
-      - backend-frontend
-      - frontend
-      - python_test
-      - scheduler_service
-    networks:
-      - app_net
-
 volumes:
   ollama_data:
   n8n_data:
@@ -194,4 +165,5 @@ volumes:
 
 networks:
   app_net:
+    external: true
     driver: bridge

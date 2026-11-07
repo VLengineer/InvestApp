@@ -110,6 +110,15 @@ class NewsResponse(BaseModel):
     news: MarketDataItem
 
 
+class AllNewsListResponse(BaseModel):
+    """GET /api/market/all-news — все новости с пагинацией."""
+
+    items: list[MarketDataItem]
+    total: int
+    limit: int
+    offset: int
+
+
 class HealthResponse(BaseModel):
     """GET /live, /ready — liveness/readiness (паттерн scheduler_service)."""
 

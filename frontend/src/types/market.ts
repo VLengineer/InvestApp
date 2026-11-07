@@ -80,9 +80,20 @@ export interface MarketDataItem {
   orderbook_bids: OrderBookLevel[]
 }
 
+/** Одна пара FIGI + название компании. */
+export interface CompanyFigiItem {
+  figi: string
+  company_name: string
+}
+
 /** GET /api/market/figis */
 export interface FigiListResponse {
   figis: string[]
+}
+
+/** GET /api/market/companies */
+export interface CompanyFigiListResponse {
+  companies: CompanyFigiItem[]
 }
 
 /** GET /api/market/initial-data?figi=... */
@@ -94,6 +105,14 @@ export interface InitialDataResponse {
 /** GET /api/market/news/{id} */
 export interface NewsResponse {
   news: MarketDataItem
+}
+
+/** GET /api/market/all-news */
+export interface AllNewsListResponse {
+  items: MarketDataItem[]
+  total: number
+  limit: number
+  offset: number
 }
 
 /** Сообщения WebSocket /ws/market-updates. */

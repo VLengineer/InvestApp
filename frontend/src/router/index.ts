@@ -27,6 +27,12 @@ const router = createRouter({
           component: () => import('../views/Dashboard.vue'),
           meta: { title: 'Финансовый дашборд' },
         },
+        {
+          path: 'all-news',
+          name: 'all-news',
+          component: () => import('../views/AllNewsView.vue'),
+          meta: { title: 'Аналитика новостей' },
+        },
       ],
     },
   ],

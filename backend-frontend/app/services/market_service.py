@@ -23,12 +23,16 @@ from fastapi import WebSocket
 
 from app.core.config import Settings
 from app.repositories.market_repository import MarketRepository
+from app.schemas.company import CompanyFigiItem
 from app.schemas.market_data import MarketDataItem
 
 logger = logging.getLogger(__name__)
 
 # Максимум записей в initial-data (ТЗ: последние 500; не грузим фронт сверх меры).
 INITIAL_DATA_LIMIT = 500
+
+# Максимум записей в all-news (пагинация).
+ALL_NEWS_LIMIT_MAX = 200
 
 
 class MarketService:
@@ -51,6 +55,11 @@ class MarketService:
         """Уникальные FIGI, по которым есть данные в таблице."""
         return await self._repository.list_figis()
 
+    async def list_companies(self) -> list[CompanyFigiItem]:
+        """FIGI + название компании (LEFT JOIN company_profiles)."""
+        rows = await self._repository.list_figis_with_names()
+        return [CompanyFigiItem.model_validate(r) for r in rows]
+
     async def initial_data(self, figi: str) -> list[MarketDataItem] | None:
         """Последние 500 записей FIGI; None, если такого FIGI в БД нет (403/404 на роутере)."""
         if not await self._repository.figi_exists(figi):
@@ -71,6 +80,18 @@ class MarketService:
     async def figi_exists(self, figi: str) -> bool:
         """Публичный фасад валидации FIGI (используется и REST, и WS-роутером)."""
         return await self._repository.figi_exists(figi)
+
+    async def all_news(self, limit: int, offset: int) -> tuple[list[MarketDataItem], int]:
+        """Все записи из market_news_ml_dataset с пагинацией.
+
+        Возвращает (список записей, общее количество).
+        """
+        safe_limit = min(limit, ALL_NEWS_LIMIT_MAX)
+        safe_offset = max(offset, 0)
+        rows = await self._repository.all_news(safe_limit, safe_offset)
+        total = await self._repository.count_all()
+        items = [MarketDataItem.model_validate(r) for r in rows]
+        return items, total
 
     async def ping(self, figi: str) -> dict[str, int]:
         """Служебная in-band команда для интеграционных тестов real-time цикла.

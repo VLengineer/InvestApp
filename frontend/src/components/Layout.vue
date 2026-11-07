@@ -15,6 +15,7 @@ const route = useRoute()
 const links = [
   { to: '/', label: 'Анализатор новостей', exact: true },
   { to: '/dashboard', label: 'Финансовый дашборд', exact: false },
+  { to: '/all-news', label: 'Аналитика новостей', exact: false },
 ]
 
 function isActive(link: { to: string; exact: boolean }) {

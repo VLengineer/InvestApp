@@ -17,7 +17,9 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Path, Query, status
 
 from app.api.deps import MarketServiceDep
+from app.schemas.company import CompanyFigiListResponse
 from app.schemas.market_data import (
+    AllNewsListResponse,
     FigiListResponse,
     InitialDataResponse,
     NewsResponse,
@@ -42,6 +44,17 @@ async def list_figis(market: MarketServiceDep) -> FigiListResponse:
 
 
 @router.get(
+    "/companies",
+    response_model=CompanyFigiListResponse,
+    summary="FIGI с названиями компаний",
+)
+async def list_companies(market: MarketServiceDep) -> CompanyFigiListResponse:
+    """FIGI + название компании из company_profiles (LEFT JOIN)."""
+    companies = await market.list_companies()
+    return CompanyFigiListResponse(companies=companies)
+
+
+@router.get(
     "/initial-data",
     response_model=InitialDataResponse,
     summary="Последние 500 записей для конкретного FIGI",
@@ -58,6 +71,21 @@ async def initial_data(
             detail=f"FIGI {figi} не найден среди данных в БД",
         )
     return InitialDataResponse(data=items, figi=figi)
+
+
+@router.get(
+    "/all-news",
+    response_model=AllNewsListResponse,
+    summary="Все новости с пагинацией",
+)
+async def all_news(
+    market: MarketServiceDep,
+    limit: int = Query(default=50, ge=1, le=200, description="Количество записей"),
+    offset: int = Query(default=0, ge=0, description="Сдвиг от начала"),
+) -> AllNewsListResponse:
+    """Все записи из market_news_ml_dataset, отсортированные по ts DESC."""
+    items, total = await market.all_news(limit, offset)
+    return AllNewsListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.get(

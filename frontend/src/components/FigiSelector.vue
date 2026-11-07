@@ -22,10 +22,11 @@
  *  - закрытие по клику вне, Enter/Escape, стрелки вверх/вниз.
  */
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import type { CompanyFigiItem } from '../types/market'
 
 const props = defineProps<{
-  /** Доступные FIGI из БД. */
-  figis: string[]
+  /** Доступные FIGI с названиями компаний из БД. */
+  figis: CompanyFigiItem[]
   /** Текущий выбранный FIGI (v-model). */
   modelValue: string
   /** true — список ещё загружается. */
@@ -54,10 +55,14 @@ const highlighted = ref(0)
 /** Инлайновые стили фиксированной панели (пересчитываются при каждом open/scroll). */
 const panelStyle = ref<Record<string, string>>({})
 
-/** Отфильтрованный список (поиск подстрокой без регистра). */
+/** Отфильтрованный список (поиск по FIGI и названию компании). */
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
-  return q ? props.figis.filter((f) => f.toLowerCase().includes(q)) : props.figis
+  if (!q) return props.figis
+  return props.figis.filter((item) => 
+    item.figi.toLowerCase().includes(q) || 
+    item.company_name.toLowerCase().includes(q)
+  )
 })
 
 /**
@@ -128,7 +133,7 @@ async function openList() {
   // Координаты считаем ДО показа: панель получает инлайновый position/fixed
   // уже на первом рендере, без «мигания» в начале документа.
   search.value = ''
-  highlighted.value = Math.max(0, filtered.value.indexOf(props.modelValue))
+  highlighted.value = Math.max(0, filtered.value.findIndex(item => item.figi === props.modelValue))
   positionPanel()
 
   open.value = true
@@ -151,8 +156,8 @@ function toggle() {
   else void openList()
 }
 
-function select(figi: string) {
-  emit('update:modelValue', figi)
+function select(item: CompanyFigiItem) {
+  emit('update:modelValue', item.figi)
   close(true)
 }
 
@@ -188,8 +193,8 @@ function onKeydown(ev: KeyboardEvent) {
       break
     case 'Enter': {
       ev.preventDefault()
-      const figi = filtered.value[highlighted.value]
-      if (figi) select(figi)
+      const item = filtered.value[highlighted.value]
+      if (item) select(item)
       break
     }
     case 'Tab':
@@ -243,18 +248,19 @@ onBeforeUnmount(() => {
         />
         <ul class="list" role="listbox">
           <li
-            v-for="(figi, i) in filtered.slice(0, 200)"
-            :key="figi"
+            v-for="(item, i) in filtered.slice(0, 200)"
+            :key="item.figi"
             role="option"
-            :aria-selected="figi === modelValue"
+            :aria-selected="item.figi === modelValue"
             class="item"
             :class="{
-              'item--active': figi === modelValue,
+              'item--active': item.figi === modelValue,
               'item--highlight': i === highlighted,
             }"
-            @click="select(figi)"
+            @click="select(item)"
           >
-            {{ figi }}
+            <span class="item-company">{{ item.company_name }}</span>
+            <span class="item-figi">{{ item.figi }}</span>
           </li>
           <li v-if="filtered.length === 0" class="empty">Ничего не найдено</li>
         </ul>
@@ -371,6 +377,21 @@ onBeforeUnmount(() => {
   transition:
     color var(--duration-fast) var(--ease-out),
     background-color var(--duration-fast) var(--ease-out);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.item-company {
+  font-size: var(--fs-small);
+  font-weight: var(--fw-regular);
+  color: var(--color-ink);
+}
+
+.item-figi {
+  font-size: var(--fs-micro);
+  color: var(--color-grey-light);
+  font-family: var(--font-mono, monospace);
 }
 
 .item:hover,

@@ -5,7 +5,14 @@
  * резолвить docker-имена.
  */
 
-import type { FigiListResponse, InitialDataResponse, NewsResponse } from '../types/market'
+import type {
+  AllNewsListResponse,
+  CompanyFigiItem,
+  CompanyFigiListResponse,
+  FigiListResponse,
+  InitialDataResponse,
+  NewsResponse,
+} from '../types/market'
 
 const API_BASE = '/api/market'
 
@@ -30,6 +37,12 @@ export async function fetchFigis(): Promise<string[]> {
   return data.figis
 }
 
+/** FIGI + названия компаний из company_profiles. */
+export async function fetchCompanies(): Promise<CompanyFigiItem[]> {
+  const data = await getJson<CompanyFigiListResponse>(`${API_BASE}/companies`)
+  return data.companies
+}
+
 /** Последние 500 записей для конкретного FIGI (история для графиков). */
 export async function fetchInitialData(figi: string): Promise<InitialDataResponse> {
   return getJson<InitialDataResponse>(`${API_BASE}/initial-data?figi=${encodeURIComponent(figi)}`)
@@ -38,4 +51,9 @@ export async function fetchInitialData(figi: string): Promise<InitialDataRespons
 /** Полная информация о новости по ID (для модалки). */
 export async function fetchNewsById(id: string): Promise<NewsResponse> {
   return getJson<NewsResponse>(`${API_BASE}/news/${encodeURIComponent(id)}`)
+}
+
+/** Все новости с пагинацией (для страницы аналитики). */
+export async function fetchAllNews(limit: number, offset: number): Promise<AllNewsListResponse> {
+  return getJson<AllNewsListResponse>(`${API_BASE}/all-news?limit=${limit}&offset=${offset}`)
 }

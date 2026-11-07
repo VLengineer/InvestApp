@@ -45,6 +45,17 @@ _LIST_FIGIS_SQL = """
 
 _FIGI_EXISTS_SQL = "SELECT 1 FROM market_news_ml_dataset WHERE figi = $1 LIMIT 1"
 
+# FIGI + название компании из company_profiles (LEFT JOIN — если профиля нет,
+# fallback на сам FIGI; фронтенд отобразит как есть).
+_LIST_FIGIS_WITH_NAMES_SQL = """
+    SELECT DISTINCT m.figi,
+           COALESCE(cp.company_name, m.figi) AS company_name
+    FROM market_news_ml_dataset m
+    LEFT JOIN company_profiles cp ON cp.figi = m.figi
+    WHERE m.figi IS NOT NULL AND m.figi <> ''
+    ORDER BY m.figi
+"""
+
 # ------------------------------ История по FIGI -------------------------------
 # Последние N записей для конкретного FIGI; наружу отдаём в хронологическом
 # порядке (графикам слева направо), берём хвост через подзапрос DESC/LIMIT.
@@ -72,6 +83,16 @@ _SELECT_ORDERBOOK_FOR_IDS_SQL = """
     FROM orderbook_bids WHERE market_data_id = ANY($1::uuid[])
     ORDER BY market_data_id, side, position
 """
+
+# --------------------------- Все новости (пагинация) --------------------------
+_SELECT_ALL_NEWS_SQL = f"""
+    SELECT {_DATA_COLUMNS}
+    FROM market_news_ml_dataset
+    ORDER BY ts DESC NULLS LAST
+    LIMIT $1 OFFSET $2
+"""
+
+_COUNT_ALL_SQL = "SELECT COUNT(*) FROM market_news_ml_dataset"
 
 # ----------------------- Новые записи (real-time polling) ----------------------
 # Инкрементальная выборка строго после последней известной свечи/времени.
@@ -118,6 +139,16 @@ class MarketRepository:
         logger.info("PostgreSQL <<< list_figis: %d шт", len(figis))
         return figis
 
+    async def list_figis_with_names(self) -> list[dict[str, str]]:
+        """Уникальные FIGI + название компании из company_profiles.
+
+        LEFT JOIN: если профиля нет — company_name fallback на сам FIGI.
+        """
+        rows = await self._pool.fetch(_LIST_FIGIS_WITH_NAMES_SQL)
+        result = [{"figi": r["figi"], "company_name": r["company_name"]} for r in rows]
+        logger.info("PostgreSQL <<< list_figis_with_names: %d шт", len(result))
+        return result
+
     async def figi_exists(self, figi: str) -> bool:
         """Валидация FIGI: есть ли такие данные в БД вообще (безопасность фронта)."""
         row = await self._pool.fetchval(_FIGI_EXISTS_SQL, figi)
@@ -139,6 +170,22 @@ class MarketRepository:
         record = _row_to_dict(row)
         await self._attach_orderbook([record])
         return record
+
+    # --------------------------------------------------- Все новости (пагинация)
+    async def all_news(self, limit: int, offset: int) -> list[dict[str, Any]]:
+        """Все записи из market_news_ml_dataset, ORDER BY ts DESC, с пагинацией."""
+        rows = await self._pool.fetch(_SELECT_ALL_NEWS_SQL, limit, offset)
+        records = [_row_to_dict(r) for r in rows]
+        logger.info(
+            "PostgreSQL <<< all_news(limit=%d, offset=%d): %d строк",
+            limit, offset, len(records),
+        )
+        return records
+
+    async def count_all(self) -> int:
+        """Общее количество записей в market_news_ml_dataset."""
+        count: int = await self._pool.fetchval(_COUNT_ALL_SQL)
+        return count
 
     # ----------------------------------------------------- Инкрементальная ----
     async def new_since(

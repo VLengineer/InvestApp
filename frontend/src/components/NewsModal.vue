@@ -98,6 +98,15 @@ function fmt(n: number | null | undefined): string {
   return n.toLocaleString('ru-RU')
 }
 
+/** Декодирование HTML-сущностей. */
+function unescapeHtml(text: string | null | undefined): string {
+  if (!text) return ''
+  if (typeof window === 'undefined') return text
+  const doc = new DOMParser().parseFromString(text, 'text/html')
+  return doc.documentElement.textContent || ''
+}
+
+
 const closePrice = computed(() => {
   const it = props.news
   if (!it) return '—'
@@ -269,7 +278,7 @@ function onOverlayClick(ev: MouseEvent) {
       <header class="head">
         <div>
           <p class="kicker">Новость рынка · {{ news.figi || '—' }}</p>
-          <h2 class="title">{{ news.title || 'Без заголовка' }}</h2>
+          <h2 class="title">{{ unescapeHtml(news.title) || 'Без заголовка' }}</h2>
           <p v-if="news.ts" class="meta">
             {{ new Date(news.ts).toLocaleString('ru-RU') }}
             <span v-if="news.source"> · {{ news.source }}</span>
@@ -282,13 +291,13 @@ function onOverlayClick(ev: MouseEvent) {
         <!-- Текст новости -->
         <section v-if="news.content" class="section">
           <h3 class="section-title">Текст новости</h3>
-          <p class="content-text">{{ news.content }}</p>
+          <p class="content-text">{{ unescapeHtml(news.content) }}</p>
         </section>
 
         <!-- Саммари от ИИ -->
         <section v-if="news.ai_text_summary" class="section ai-summary">
           <h3 class="section-title gold">Саммари от ИИ</h3>
-          <p class="summary-text">{{ news.ai_text_summary }}</p>
+          <p class="summary-text">{{ unescapeHtml(news.ai_text_summary) }}</p>
         </section>
 
         <!-- Развёрнутая структура из ai_raw_response (JSONB) -->
