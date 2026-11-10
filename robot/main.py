@@ -179,51 +179,76 @@ async def fetch_candles(instrument_id: str, from_ts: str, to_ts: str, interval: 
 async def fetch_indicators(
     instrument_id: str, from_ts: str, to_ts: str, interval: str, price_type: str, length: int, ind_type: IndicatorType
 ) -> Dict[str, TechIndicator]:
+    """Загружает индикаторы, разбивая большой период на меньшие части."""
+    from datetime import datetime, timedelta
+    
     url = f"{BASE_URL}/tinkoff.public.invest.api.contract.v1.MarketDataService/GetTechAnalysis"
     
-    # Базовый payload для всех индикаторов
-    payload = {
-        "indicatorType": ind_type.value,
-        "instrumentId": instrument_id,
-        "from": from_ts,
-        "to": to_ts,
-        "interval": interval,
-        "typeOfPrice": price_type,
-        "length": length,
-    }
+    # Парсим ISO timestamps
+    def parse_ts(ts_str: str) -> datetime:
+        ts_str = ts_str.replace('Z', '+00:00')
+        return datetime.fromisoformat(ts_str)
     
-    # Дополнительные параметры для специфичных индикаторов
-    if ind_type == IndicatorType.BB:
-        # Bollinger Bands требует параметр deviation в формате Quotation
-        payload["deviation"] = {
-            "deviationMultiplier": {
-                "units": "2",
-                "nano": 0
+    start = parse_ts(from_ts)
+    end = parse_ts(to_ts)
+    
+    # Для индикаторов максимум ~30 дней
+    max_period = timedelta(days=30)
+    
+    all_indicators = {}
+    current_start = start
+    
+    while current_start < end:
+        current_end = min(current_start + max_period, end)
+        
+        # Базовый payload для всех индикаторов
+        payload = {
+            "indicatorType": ind_type.value,
+            "instrumentId": instrument_id,
+            "from": current_start.isoformat(),
+            "to": current_end.isoformat(),
+            "interval": interval,
+            "typeOfPrice": price_type,
+            "length": length,
+        }
+        
+        # Дополнительные параметры для специфичных индикаторов
+        if ind_type == IndicatorType.BB:
+            payload["deviation"] = {
+                "deviationMultiplier": {
+                    "units": "2",
+                    "nano": 0
+                }
             }
-        }
-    elif ind_type == IndicatorType.MACD:
-        # MACD требует параметр smoothing с настройками сглаживания
-        payload["smoothing"] = {
-            "fastLength": 12,
-            "slowLength": 26,
-            "signalSmoothing": 9
-        }
+        elif ind_type == IndicatorType.MACD:
+            payload["smoothing"] = {
+                "fastLength": 12,
+                "slowLength": 26,
+                "signalSmoothing": 9
+            }
+        
+        logger.debug(f"Fetching {ind_type.value} from {current_start.isoformat()} to {current_end.isoformat()}")
+        
+        # Увеличенный timeout для индикаторов
+        timeout = httpx.Timeout(60.0, connect=10.0)
+        
+        async with httpx.AsyncClient(verify=False, timeout=timeout) as client:
+            resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {TOKEN}"})
+            if resp.status_code != 200:
+                logger.error(f"Error fetching {ind_type.value}: {resp.status_code}")
+                logger.error(f"Request payload: {payload}")
+                logger.error(f"Response body: {resp.text}")
+                raise Exception(f"API error {resp.status_code} for {ind_type.value}: {resp.text}")
+            data = resp.json()
+        
+        # Добавляем индикаторы в словарь
+        for item in data.get("technicalIndicators", []):
+            all_indicators[item["timestamp"]] = TechIndicator(**item)
+        
+        current_start = current_end
     
-    logger.debug(f"Fetching {ind_type.value} with payload: {payload}")
-    
-    # Увеличенный timeout для индикаторов (они могут вычисляться долго)
-    timeout = httpx.Timeout(60.0, connect=10.0)
-    
-    async with httpx.AsyncClient(verify=False, timeout=timeout) as client:
-        resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {TOKEN}"})
-        if resp.status_code != 200:
-            logger.error(f"Error fetching {ind_type.value}: {resp.status_code}")
-            logger.error(f"Request payload: {payload}")
-            logger.error(f"Response body: {resp.text}")
-            raise Exception(f"API error {resp.status_code} for {ind_type.value}: {resp.text}")
-        data = resp.json()
-    
-    return {item["timestamp"]: TechIndicator(**item) for item in data.get("technicalIndicators", [])}
+    logger.info(f"Loaded {len(all_indicators)} {ind_type.value} indicators for {price_type}")
+    return all_indicators
 
 
 async def build_ml_dataset(instrument_id: str, from_ts: str, to_ts: str) -> List[MarketSnapshot]:
