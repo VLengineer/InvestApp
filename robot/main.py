@@ -211,7 +211,10 @@ async def fetch_indicators(
     
     logger.debug(f"Fetching {ind_type.value} with payload: {payload}")
     
-    async with httpx.AsyncClient(verify=False) as client:
+    # Увеличенный timeout для индикаторов (они могут вычисляться долго)
+    timeout = httpx.Timeout(60.0, connect=10.0)
+    
+    async with httpx.AsyncClient(verify=False, timeout=timeout) as client:
         resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {TOKEN}"})
         if resp.status_code != 200:
             logger.error(f"Error fetching {ind_type.value}: {resp.status_code}")
