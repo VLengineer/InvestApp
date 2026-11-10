@@ -16,6 +16,13 @@ from pydantic import BaseModel, Field
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
+# Настройка логирования
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # --- Загрузка .env из директории скрипта ---
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -159,8 +166,10 @@ async def fetch_indicators(
     async with httpx.AsyncClient(verify=False) as client:
         resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {TOKEN}"})
         if resp.status_code != 200:
-            logger.error(f"Error fetching {ind_type.value}: {resp.status_code} - {resp.text}")
-        resp.raise_for_status()
+            logger.error(f"Error fetching {ind_type.value}: {resp.status_code}")
+            logger.error(f"Request payload: {payload}")
+            logger.error(f"Response body: {resp.text}")
+            raise Exception(f"API error {resp.status_code} for {ind_type.value}: {resp.text}")
         data = resp.json()
     
     return {item["timestamp"]: TechIndicator(**item) for item in data.get("technicalIndicators", [])}
