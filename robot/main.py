@@ -153,8 +153,13 @@ async def fetch_indicators(
     
     # Дополнительные параметры для специфичных индикаторов
     if ind_type == IndicatorType.BB:
-        # Bollinger Bands требует параметр deviation (стандартное отклонение)
-        payload["deviation"] = 2.0
+        # Bollinger Bands требует параметр deviation в формате Quotation
+        payload["deviation"] = {
+            "deviationMultiplier": {
+                "units": "2",
+                "nano": 0
+            }
+        }
     elif ind_type == IndicatorType.MACD:
         # MACD требует параметры для быстрой, медленной и сигнальной линий
         payload["shortPeriod"] = 12
