@@ -124,20 +124,56 @@ class MarketSnapshot(BaseModel):
 
 
 async def fetch_candles(instrument_id: str, from_ts: str, to_ts: str, interval: str) -> Dict[str, Candle]:
-    url = f"{BASE_URL}/tinkoff.public.invest.api.contract.v1.MarketDataService/GetCandles"
-    payload = {"instrumentId": instrument_id, "from": from_ts, "to": to_ts, "interval": interval}
-    logger.debug(f"Fetching candles with payload: {payload}")
-    async with httpx.AsyncClient(verify=False) as client:
-        resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {TOKEN}"})
-        if resp.status_code != 200:
-            logger.error(f"Error fetching candles: {resp.status_code}")
-            logger.error(f"Request payload: {payload}")
-            logger.error(f"Response body: {resp.text}")
-            raise Exception(f"API error {resp.status_code} for candles: {resp.text}")
-        data = resp.json()
+    """Загружает свечи, разбивая большой период на меньшие части."""
+    from datetime import datetime, timedelta, timezone
+    import re
     
-    # Ключ словаря - timestamp для быстрого merge
-    return {c["time"]: Candle(**c) for c in data.get("candles", [])}
+    url = f"{BASE_URL}/tinkoff.public.invest.api.contract.v1.MarketDataService/GetCandles"
+    
+    # Парсим ISO timestamps
+    def parse_ts(ts_str: str) -> datetime:
+        # Убираем 'Z' и добавляем timezone
+        ts_str = ts_str.replace('Z', '+00:00')
+        return datetime.fromisoformat(ts_str)
+    
+    start = parse_ts(from_ts)
+    end = parse_ts(to_ts)
+    
+    # Для 5-минутных свечей максимум ~7 дней
+    max_period = timedelta(days=7)
+    
+    all_candles = {}
+    current_start = start
+    
+    while current_start < end:
+        current_end = min(current_start + max_period, end)
+        
+        payload = {
+            "instrumentId": instrument_id,
+            "from": current_start.isoformat(),
+            "to": current_end.isoformat(),
+            "interval": interval
+        }
+        
+        logger.debug(f"Fetching candles from {current_start.isoformat()} to {current_end.isoformat()}")
+        
+        async with httpx.AsyncClient(verify=False) as client:
+            resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {TOKEN}"})
+            if resp.status_code != 200:
+                logger.error(f"Error fetching candles: {resp.status_code}")
+                logger.error(f"Request payload: {payload}")
+                logger.error(f"Response body: {resp.text}")
+                raise Exception(f"API error {resp.status_code} for candles: {resp.text}")
+            data = resp.json()
+        
+        # Добавляем свечи в словарь
+        for c in data.get("candles", []):
+            all_candles[c["time"]] = Candle(**c)
+        
+        current_start = current_end
+    
+    logger.info(f"Loaded {len(all_candles)} candles total")
+    return all_candles
 
 
 async def fetch_indicators(
