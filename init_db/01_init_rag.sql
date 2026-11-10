@@ -46,10 +46,8 @@ CREATE TABLE IF NOT EXISTS kb_embeddings (
 );
 
 -- Векторный KNN-индекс (cosine — стандарт для нормализованных эмбеддингов)
-CREATE INDEX IF NOT EXISTS ix_kb_embeddings_vector_hnsw
-    ON kb_embeddings USING hnsw (embedding vector_cosine_ops);
-CREATE INDEX IF NOT EXISTS ix_kb_embeddings_document_id
-    ON kb_embeddings (document_id);
+CREATE INDEX IF NOT EXISTS ix_kb_embeddings_vector_hnsw ON kb_embeddings USING hnsw (embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS ix_kb_embeddings_document_id ON kb_embeddings (document_id);
 
 -- ------------------------------------------------------------
 -- Представление для семантического поиска (JOIN двух таблиц)

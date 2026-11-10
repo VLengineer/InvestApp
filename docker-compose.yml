@@ -158,10 +158,52 @@ services:
     networks:
       - app_net
 
+  restic-backup:
+    build:
+      context: ./backup
+      dockerfile: Dockerfile
+    container_name: restic-backup
+    restart: unless-stopped
+    environment:
+      # PostgreSQL connection (для pg_dump)
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # Restic repository
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD}
+      # Restic optional S3/env credentials (если репозиторий на S3/B2/etc.)
+      AWS_ACCESS_KEY_ID: ${RESTIC_AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${RESTIC_AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${RESTIC_AWS_DEFAULT_REGION:-}
+      B2_ACCOUNT_ID: ${RESTIC_B2_ACCOUNT_ID:-}
+      B2_ACCOUNT_KEY: ${RESTIC_B2_ACCOUNT_KEY:-}
+      # Retention policy
+      RESTIC_KEEP_DAILY: ${RESTIC_KEEP_DAILY:-7}
+      RESTIC_KEEP_WEEKLY: ${RESTIC_KEEP_WEEKLY:-4}
+      RESTIC_KEEP_MONTHLY: ${RESTIC_KEEP_MONTHLY:-6}
+      # Cron schedule (default: every day at 02:00)
+      RESTIC_CRON_SCHEDULE: ${RESTIC_CRON_SCHEDULE:-0 2 * * *}
+      RESTIC_HOST: ${RESTIC_HOST:-n8n-server}
+      RESTIC_RUN_ON_STARTUP: ${RESTIC_RUN_ON_STARTUP:-false}
+      TZ: ${TZ:-Europe/Moscow}
+    volumes:
+      # read-write нужен для restore; backup.sh только читает (cp -a)
+      - n8n_data:/n8n_data
+      - restic_cache:/root/.cache/restic
+    depends_on:
+      postgres:
+        condition: service_healthy
+      n8n:
+        condition: service_started
+    networks:
+      - app_net
+
 volumes:
   ollama_data:
   n8n_data:
   postgres_data:
+  restic_cache:
 
 networks:
   app_net:

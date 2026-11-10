@@ -1,8 +1,0 @@
-name: Project Coder MCP
-version: 0.1.0
-schema: v1
-mcpServers:
-  - name: project-coder
-    # SSE-сервер поднимается сервисом mcp-server из docker-compose.yml:
-    #   docker compose up -d --build mcp-server
-    url: http://localhost:9000/sse
