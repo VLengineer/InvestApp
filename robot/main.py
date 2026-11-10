@@ -126,9 +126,14 @@ class MarketSnapshot(BaseModel):
 async def fetch_candles(instrument_id: str, from_ts: str, to_ts: str, interval: str) -> Dict[str, Candle]:
     url = f"{BASE_URL}/tinkoff.public.invest.api.contract.v1.MarketDataService/GetCandles"
     payload = {"instrumentId": instrument_id, "from": from_ts, "to": to_ts, "interval": interval}
+    logger.debug(f"Fetching candles with payload: {payload}")
     async with httpx.AsyncClient(verify=False) as client:
         resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {TOKEN}"})
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            logger.error(f"Error fetching candles: {resp.status_code}")
+            logger.error(f"Request payload: {payload}")
+            logger.error(f"Response body: {resp.text}")
+            raise Exception(f"API error {resp.status_code} for candles: {resp.text}")
         data = resp.json()
     
     # Ключ словаря - timestamp для быстрого merge
