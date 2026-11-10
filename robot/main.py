@@ -2,6 +2,7 @@ import os
 import asyncio
 import logging
 import warnings
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import List, Optional, Dict
@@ -75,6 +76,14 @@ class IndicatorType(StrEnum):
 
 
 ALL_INDICATOR_TYPES = list(IndicatorType)
+
+
+def parse_iso_timestamp(ts_str: str) -> datetime:
+    """Парсит ISO-8601 timestamp строку в datetime с timezone.
+    Поддерживает форматы: '2024-11-10T04:00:00Z', '2024-11-10T04:00:00+00:00'
+    """
+    ts_str = ts_str.replace('Z', '+00:00')
+    return datetime.fromisoformat(ts_str)
 
 
 class Quotation(BaseModel):
@@ -248,6 +257,7 @@ async def fetch_indicators(
         
         # Retry логика
         max_retries = 3
+        skip_this_combination = False
         for attempt in range(max_retries):
             try:
                 async with httpx.AsyncClient(verify=False, timeout=timeout) as client:
@@ -256,15 +266,46 @@ async def fetch_indicators(
                         logger.error(f"Error fetching {ind_type.value}: {resp.status_code}")
                         logger.error(f"Request payload: {payload}")
                         logger.error(f"Response body: {resp.text}")
-                        raise Exception(f"API error {resp.status_code} for {ind_type.value}: {resp.text}")
-                    data = resp.json()
-                break  # Успех, выходим из цикла retry
+                        # Проверяем, является ли ошибка невосстановимой (API не поддерживает комбинацию)
+                        try:
+                            err_data = resp.json()
+                            err_code = err_data.get("code", 0)
+                            err_desc = err_data.get("description", "")
+                            # code 13 (INTERNAL) — API не поддерживает данную комбинацию
+                            # индикатора и типа цены (напр. MACD + TYPE_OF_PRICE_AVG)
+                            if err_code == 13:
+                                logger.warning(
+                                    f"API does not support {ind_type.value} with {price_type} "
+                                    f"(code={err_code}, desc={err_desc}). Skipping."
+                                )
+                                skip_this_combination = True
+                                break
+                        except Exception:
+                            pass
+                        # Для других ошибок — retry
+                        if attempt < max_retries - 1:
+                            logger.warning(f"Retrying {ind_type.value} attempt {attempt + 1}...")
+                            await asyncio.sleep(2 ** attempt)
+                        else:
+                            logger.error(f"All retries failed for {ind_type.value} with {price_type}. Skipping.")
+                            skip_this_combination = True
+                            break
+                    else:
+                        data = resp.json()
+                        break  # Успех, выходим из цикла retry
+                break
             except (httpx.ConnectTimeout, httpx.ReadTimeout) as e:
                 if attempt < max_retries - 1:
                     logger.warning(f"Timeout on attempt {attempt + 1} for {ind_type.value}, retrying...")
                     await asyncio.sleep(2 ** attempt)  # Exponential backoff
                 else:
-                    raise
+                    logger.error(f"All timeout retries failed for {ind_type.value} with {price_type}. Skipping.")
+                    skip_this_combination = True
+                    break
+        
+        # Если API не поддерживает эту комбинацию — пропускаем
+        if skip_this_combination:
+            break
         
         # Добавляем индикаторы в словарь
         for item in data.get("technicalIndicators", []):
@@ -410,7 +451,7 @@ def snapshot_to_db_row(snapshot: MarketSnapshot, figi: str = FIGI) -> dict:
     c = snapshot.candle
     
     row = {
-        "timestamp": snapshot.timestamp,
+        "timestamp": parse_iso_timestamp(snapshot.timestamp),
         "figi": figi,
         "candle_open": c.open.to_float() if c else None,
         "candle_high": c.high.to_float() if c else None,
