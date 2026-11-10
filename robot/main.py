@@ -153,7 +153,7 @@ async def build_ml_dataset(instrument_id: str, from_ts: str, to_ts: str) -> List
     """Собирает все данные для всех типов цены и объединяет их по timestamp."""
     
     # 1. Формируем задачи: свечи + все комбинации (тип цены × индикатор)
-    tasks = [fetch_candles(instrument_id, from_ts, to_ts, CANDLE_INTERVAL)]
+    tasks: list = [fetch_candles(instrument_id, from_ts, to_ts, CANDLE_INTERVAL)]
     
     for price_type in PRICE_TYPES:
         for ind_type in ALL_INDICATOR_TYPES:
