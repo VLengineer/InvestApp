@@ -230,16 +230,27 @@ async def fetch_indicators(
         logger.debug(f"Fetching {ind_type.value} from {current_start.isoformat()} to {current_end.isoformat()}")
         
         # Увеличенный timeout для индикаторов
-        timeout = httpx.Timeout(60.0, connect=10.0)
+        timeout = httpx.Timeout(60.0, connect=30.0)
         
-        async with httpx.AsyncClient(verify=False, timeout=timeout) as client:
-            resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {TOKEN}"})
-            if resp.status_code != 200:
-                logger.error(f"Error fetching {ind_type.value}: {resp.status_code}")
-                logger.error(f"Request payload: {payload}")
-                logger.error(f"Response body: {resp.text}")
-                raise Exception(f"API error {resp.status_code} for {ind_type.value}: {resp.text}")
-            data = resp.json()
+        # Retry логика
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient(verify=False, timeout=timeout) as client:
+                    resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {TOKEN}"})
+                    if resp.status_code != 200:
+                        logger.error(f"Error fetching {ind_type.value}: {resp.status_code}")
+                        logger.error(f"Request payload: {payload}")
+                        logger.error(f"Response body: {resp.text}")
+                        raise Exception(f"API error {resp.status_code} for {ind_type.value}: {resp.text}")
+                    data = resp.json()
+                break  # Успех, выходим из цикла retry
+            except (httpx.ConnectTimeout, httpx.ReadTimeout) as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Timeout on attempt {attempt + 1} for {ind_type.value}, retrying...")
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                else:
+                    raise
         
         # Добавляем индикаторы в словарь
         for item in data.get("technicalIndicators", []):
@@ -254,19 +265,30 @@ async def fetch_indicators(
 async def build_ml_dataset(instrument_id: str, from_ts: str, to_ts: str) -> List[MarketSnapshot]:
     """Собирает все данные для всех типов цены и объединяет их по timestamp."""
     
+    # Семафор для ограничения параллельных запросов (API может отклонить слишком много одновременных)
+    semaphore = asyncio.Semaphore(5)
+    
+    async def limited_fetch_candles(*args):
+        async with semaphore:
+            return await fetch_candles(*args)
+    
+    async def limited_fetch_indicators(*args):
+        async with semaphore:
+            return await fetch_indicators(*args)
+    
     # 1. Формируем задачи: свечи + все комбинации (тип цены × индикатор)
-    tasks: list = [fetch_candles(instrument_id, from_ts, to_ts, CANDLE_INTERVAL)]
+    tasks: list = [limited_fetch_candles(instrument_id, from_ts, to_ts, CANDLE_INTERVAL)]
     
     for price_type in PRICE_TYPES:
         for ind_type in ALL_INDICATOR_TYPES:
             tasks.append(
-                fetch_indicators(
+                limited_fetch_indicators(
                     instrument_id, from_ts, to_ts,
                     INDICATORS_INTERVAL, price_type, INDICATOR_LENGTH, ind_type,
                 )
             )
     
-    # 2. Запускаем все запросы параллельно (1 свечи + 25 индикаторов = 26 задач)
+    # 2. Запускаем все запросы с ограничением параллелизма
     results = await asyncio.gather(*tasks)
     
     candles = results[0]
