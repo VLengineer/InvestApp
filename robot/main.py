@@ -157,14 +157,28 @@ async def fetch_candles(instrument_id: str, from_ts: str, to_ts: str, interval: 
         
         logger.debug(f"Fetching candles from {current_start.isoformat()} to {current_end.isoformat()}")
         
-        async with httpx.AsyncClient(verify=False) as client:
-            resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {TOKEN}"})
-            if resp.status_code != 200:
-                logger.error(f"Error fetching candles: {resp.status_code}")
-                logger.error(f"Request payload: {payload}")
-                logger.error(f"Response body: {resp.text}")
-                raise Exception(f"API error {resp.status_code} for candles: {resp.text}")
-            data = resp.json()
+        # Увеличенный timeout для свечей
+        timeout = httpx.Timeout(60.0, connect=30.0)
+        
+        # Retry логика
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient(verify=False, timeout=timeout) as client:
+                    resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {TOKEN}"})
+                    if resp.status_code != 200:
+                        logger.error(f"Error fetching candles: {resp.status_code}")
+                        logger.error(f"Request payload: {payload}")
+                        logger.error(f"Response body: {resp.text}")
+                        raise Exception(f"API error {resp.status_code} for candles: {resp.text}")
+                    data = resp.json()
+                break  # Успех, выходим из цикла retry
+            except (httpx.ConnectTimeout, httpx.ReadTimeout) as e:
+                if attempt < max_retries - 1:
+                    logger.warning(f"Timeout on attempt {attempt + 1} for candles, retrying...")
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                else:
+                    raise
         
         # Добавляем свечи в словарь
         for c in data.get("candles", []):
