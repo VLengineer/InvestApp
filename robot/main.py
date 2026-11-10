@@ -132,6 +132,8 @@ async def fetch_indicators(
     instrument_id: str, from_ts: str, to_ts: str, interval: str, price_type: str, length: int, ind_type: IndicatorType
 ) -> Dict[str, TechIndicator]:
     url = f"{BASE_URL}/tinkoff.public.invest.api.contract.v1.MarketDataService/GetTechAnalysis"
+    
+    # Базовый payload для всех индикаторов
     payload = {
         "indicatorType": ind_type.value,
         "instrumentId": instrument_id,
@@ -141,8 +143,23 @@ async def fetch_indicators(
         "typeOfPrice": price_type,
         "length": length,
     }
+    
+    # Дополнительные параметры для специфичных индикаторов
+    if ind_type == IndicatorType.BB:
+        # Bollinger Bands требует параметр deviation (стандартное отклонение)
+        payload["deviation"] = 2.0
+    elif ind_type == IndicatorType.MACD:
+        # MACD требует параметры для быстрой, медленной и сигнальной линий
+        payload["shortPeriod"] = 12
+        payload["longPeriod"] = 26
+        payload["signalPeriod"] = 9
+    
+    logger.debug(f"Fetching {ind_type.value} with payload: {payload}")
+    
     async with httpx.AsyncClient(verify=False) as client:
         resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {TOKEN}"})
+        if resp.status_code != 200:
+            logger.error(f"Error fetching {ind_type.value}: {resp.status_code} - {resp.text}")
         resp.raise_for_status()
         data = resp.json()
     
