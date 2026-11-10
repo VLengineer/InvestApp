@@ -161,20 +161,11 @@ async def fetch_indicators(
             }
         }
     elif ind_type == IndicatorType.MACD:
-        # MACD требует параметр smoothingData с настройками сглаживания
-        payload["smoothingData"] = {
-            "shortPeriod": {
-                "units": "12",
-                "nano": 0
-            },
-            "longPeriod": {
-                "units": "26",
-                "nano": 0
-            },
-            "signalSmoothing": {
-                "units": "9",
-                "nano": 0
-            }
+        # MACD требует параметр smoothing с настройками сглаживания
+        payload["smoothing"] = {
+            "fastLength": 12,
+            "slowLength": 26,
+            "signalSmoothing": 9
         }
     
     logger.debug(f"Fetching {ind_type.value} with payload: {payload}")
